@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"os"
 	"sync"
 
@@ -80,6 +81,18 @@ func initDB() error {
 		sqlDB.SetMaxIdleConns(5)
 	}
 
+	logger.Debug("Database connection established")
+
+	return nil
+}
+
+// Migrate runs all schema and data migrations.
+// It must be called after Init().
+func Migrate() error {
+	if DB == nil {
+		return errors.New("database not initialized; call Init() first")
+	}
+
 	// Auto migrate
 	if err := DB.AutoMigrate(&model.Senryu{}, &model.MutedChannel{}, &model.DetectionOptOut{}, &model.GuildChannelTypeSetting{}).Error; err != nil {
 		logger.Error("Failed to migrate database", "error", err)
@@ -97,7 +110,7 @@ func initDB() error {
 		return err
 	}
 
-	logger.Debug("Database migration completed")
+	logger.Info("Database migration completed")
 
 	return nil
 }
