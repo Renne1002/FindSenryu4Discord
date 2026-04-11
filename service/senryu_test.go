@@ -1,7 +1,7 @@
 package service
 
 import (
-	"sync"
+	"strings"
 	"testing"
 
 	"github.com/jinzhu/gorm"
@@ -26,21 +26,8 @@ func setupSenryuTestDB(t *testing.T) {
 	})
 }
 
-// resetCrypto resets the crypto package state for test isolation.
-func resetCrypto(t *testing.T) {
-	t.Helper()
-	// Reset the internal sync.Once and state so we can re-init per test.
-	// This accesses unexported fields via the test being in the same module.
-	crypto.ResetForTest()
-}
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 func TestCreateSenryu_暗号化有効時にDBに平文が保存されない(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -75,9 +62,41 @@ func TestCreateSenryu_暗号化有効時にDBに平文が保存されない(t *t
 	}
 }
 
+func TestCreateSenryu_戻り値は平文フィールドを保持する(t *testing.T) {
+	setupSenryuTestDB(t)
+	if err := crypto.Init(testEncryptionKey); err != nil {
+		t.Fatalf("crypto init failed: %v", err)
+	}
+
+	spoiler := false
+	created, err := CreateSenryu(model.Senryu{
+		ServerID:  "server1",
+		AuthorID:  "author1",
+		Kamigo:    "古池や",
+		Nakasichi: "蛙飛び込む",
+		Simogo:    "水の音",
+		Spoiler:   &spoiler,
+	})
+	if err != nil {
+		t.Fatalf("CreateSenryu failed: %v", err)
+	}
+
+	if created.Kamigo != "古池や" {
+		t.Errorf("returned Kamigo should be plaintext, got %q", created.Kamigo)
+	}
+	if created.Nakasichi != "蛙飛び込む" {
+		t.Errorf("returned Nakasichi should be plaintext, got %q", created.Nakasichi)
+	}
+	if created.Simogo != "水の音" {
+		t.Errorf("returned Simogo should be plaintext, got %q", created.Simogo)
+	}
+	if created.ID == 0 {
+		t.Error("returned ID should be non-zero (DB-assigned)")
+	}
+}
+
 func TestGetSenryuByID_暗号化有効時に平文が復元される(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -113,7 +132,6 @@ func TestGetSenryuByID_暗号化有効時に平文が復元される(t *testing.
 
 func TestGetLastSenryu_暗号化有効時に復号された文字列を返す(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -136,21 +154,19 @@ func TestGetLastSenryu_暗号化有効時に復号された文字列を返す(t 
 		t.Fatalf("GetLastSenryu failed: %v", err)
 	}
 
-	// Should contain the decrypted content
-	if !containsSubstring(result, "春すぎて") {
+	if !strings.Contains(result, "春すぎて") {
 		t.Errorf("result should contain decrypted Kamigo, got: %s", result)
 	}
-	if !containsSubstring(result, "夏来にけらし") {
+	if !strings.Contains(result, "夏来にけらし") {
 		t.Errorf("result should contain decrypted Nakasichi, got: %s", result)
 	}
-	if !containsSubstring(result, "白妙の") {
+	if !strings.Contains(result, "白妙の") {
 		t.Errorf("result should contain decrypted Simogo, got: %s", result)
 	}
 }
 
 func TestGetRecentSenryusByAuthor_暗号化有効時に復号されたリストを返す(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -190,7 +206,6 @@ func TestGetRecentSenryusByAuthor_暗号化有効時に復号されたリスト�
 
 func TestGetThreeRandomSenryus_暗号化有効時に復号されたデータを返す(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -228,7 +243,6 @@ func TestGetThreeRandomSenryus_暗号化有効時に復号されたデータを�
 		if s.Kamigo == "" || s.Nakasichi == "" || s.Simogo == "" {
 			t.Errorf("senryu[%d] has empty fields after decryption", i)
 		}
-		// Verify it's actual Japanese text, not base64
 		if crypto.IsEncrypted(s.Kamigo) {
 			t.Errorf("senryu[%d].Kamigo should be decrypted plaintext", i)
 		}
@@ -237,7 +251,6 @@ func TestGetThreeRandomSenryus_暗号化有効時に復号されたデータを�
 
 func TestCreateSenryu_暗号化無効時に平文のまま保存される(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(""); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -273,7 +286,6 @@ func TestCreateSenryu_暗号化無効時に平文のまま保存される(t *tes
 
 func TestMigration_平文データが暗号化される(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 
 	// Insert plaintext data with encryption disabled
 	if err := crypto.Init(""); err != nil {
@@ -293,7 +305,6 @@ func TestMigration_平文データが暗号化される(t *testing.T) {
 	}
 
 	// Enable encryption and run migration
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -341,7 +352,6 @@ func TestMigration_平文データが暗号化される(t *testing.T) {
 
 func TestMigration_暗号化済みデータは再暗号化されない(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -384,7 +394,6 @@ func TestMigration_暗号化済みデータは再暗号化されない(t *testin
 
 func TestDeleteSenryu_暗号化有効時でも削除できる(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -414,7 +423,6 @@ func TestDeleteSenryu_暗号化有効時でも削除できる(t *testing.T) {
 
 func TestGetRanking_暗号化有効時でも集計できる(t *testing.T) {
 	setupSenryuTestDB(t)
-	resetCrypto(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
 	}
@@ -450,18 +458,5 @@ func TestGetRanking_暗号化有効時でも集計できる(t *testing.T) {
 	}
 }
 
-func containsSubstring(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && contains(s, substr)
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-// Ensure we don't import strings just for Contains — keep test deps minimal.
-var _ = sync.Once{} // suppress unused import (sync is used by resetCrypto indirectly)
+// suppress unused import lint for strings
+var _ = strings.Contains

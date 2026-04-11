@@ -70,12 +70,14 @@ func decryptSenryuSlice(senryus []model.Senryu) error {
 func CreateSenryu(s model.Senryu) (model.Senryu, error) {
 	metrics.RecordDatabaseOperation("create_senryu")
 
-	if err := encryptSenryuFields(&s); err != nil {
+	// Encrypt a copy for DB storage; keep the original fields intact for the caller
+	dbRecord := s
+	if err := encryptSenryuFields(&dbRecord); err != nil {
 		logger.Error("Failed to encrypt senryu", "error", err)
 		return s, err
 	}
 
-	if err := db.DB.Create(&s).Error; err != nil {
+	if err := db.DB.Create(&dbRecord).Error; err != nil {
 		metrics.RecordError("database")
 		logger.Error("Failed to create senryu",
 			"error", err,
@@ -84,6 +86,10 @@ func CreateSenryu(s model.Senryu) (model.Senryu, error) {
 		)
 		return s, errors.Wrap(err, "failed to create senryu")
 	}
+
+	// Copy DB-assigned fields back to the plaintext version
+	s.ID = dbRecord.ID
+	s.CreatedAt = dbRecord.CreatedAt
 
 	metrics.RecordSenryuDetected(s.ServerID)
 	logger.Debug("Senryu created",

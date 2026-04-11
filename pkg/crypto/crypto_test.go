@@ -5,21 +5,10 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"encoding/hex"
-	"sync"
 	"testing"
 )
 
-// resetState resets the package-level state for test isolation.
-func resetState() {
-	gcm = nil
-	enabled = false
-	once = sync.Once{}
-}
-
 func TestInit_有効なキーで初期化できる(t *testing.T) {
-	resetState()
-
-	// 32 bytes = 64 hex chars
 	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -30,8 +19,6 @@ func TestInit_有効なキーで初期化できる(t *testing.T) {
 }
 
 func TestInit_空キーで暗号化無効(t *testing.T) {
-	resetState()
-
 	if err := Init(""); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -41,8 +28,6 @@ func TestInit_空キーで暗号化無効(t *testing.T) {
 }
 
 func TestInit_不正なキー長でエラー(t *testing.T) {
-	resetState()
-
 	// 16 bytes = 32 hex chars (too short for AES-256)
 	err := Init("0123456789abcdef0123456789abcdef")
 	if err == nil {
@@ -51,17 +36,32 @@ func TestInit_不正なキー長でエラー(t *testing.T) {
 }
 
 func TestInit_不正なhexでエラー(t *testing.T) {
-	resetState()
-
 	err := Init("not-a-valid-hex-string-at-all!!")
 	if err == nil {
 		t.Fatal("expected error for invalid hex")
 	}
 }
 
-func TestEncryptDecrypt_ラウンドトリップ(t *testing.T) {
-	resetState()
+func TestInit_エラー後に正しいキーで再初期化できる(t *testing.T) {
+	// First call with bad key
+	if err := Init("badkey"); err == nil {
+		t.Fatal("expected error for bad key")
+	}
+	if IsEnabled() {
+		t.Error("should be disabled after error")
+	}
 
+	// Second call with valid key should succeed
+	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	if err := Init(key); err != nil {
+		t.Fatalf("re-Init with valid key failed: %v", err)
+	}
+	if !IsEnabled() {
+		t.Error("should be enabled after successful re-Init")
+	}
+}
+
+func TestEncryptDecrypt_ラウンドトリップ(t *testing.T) {
 	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -88,8 +88,6 @@ func TestEncryptDecrypt_ラウンドトリップ(t *testing.T) {
 }
 
 func TestEncryptDecrypt_空文字列(t *testing.T) {
-	resetState()
-
 	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -111,8 +109,6 @@ func TestEncryptDecrypt_空文字列(t *testing.T) {
 }
 
 func TestEncrypt_暗号化無効時は平文を返す(t *testing.T) {
-	resetState()
-
 	if err := Init(""); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -129,8 +125,6 @@ func TestEncrypt_暗号化無効時は平文を返す(t *testing.T) {
 }
 
 func TestDecrypt_暗号化無効時は入力をそのまま返す(t *testing.T) {
-	resetState()
-
 	if err := Init(""); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -147,8 +141,6 @@ func TestDecrypt_暗号化無効時は入力をそのまま返す(t *testing.T) 
 }
 
 func TestDecrypt_不正なbase64でエラー(t *testing.T) {
-	resetState()
-
 	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -161,8 +153,6 @@ func TestDecrypt_不正なbase64でエラー(t *testing.T) {
 }
 
 func TestDecrypt_短すぎるデータでエラー(t *testing.T) {
-	resetState()
-
 	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -177,8 +167,6 @@ func TestDecrypt_短すぎるデータでエラー(t *testing.T) {
 }
 
 func TestDecrypt_異なるキーで復号失敗(t *testing.T) {
-	resetState()
-
 	key1 := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key1); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -189,8 +177,7 @@ func TestDecrypt_異なるキーで復号失敗(t *testing.T) {
 		t.Fatalf("Encrypt failed: %v", err)
 	}
 
-	// Reset and init with a different key
-	resetState()
+	// Re-init with a different key
 	key2 := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
 	if err := Init(key2); err != nil {
 		t.Fatalf("Init failed with key2: %v", err)
@@ -203,8 +190,6 @@ func TestDecrypt_異なるキーで復号失敗(t *testing.T) {
 }
 
 func TestEncrypt_同じ平文でも異なる暗号文を生成(t *testing.T) {
-	resetState()
-
 	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -233,8 +218,6 @@ func TestEncrypt_同じ平文でも異なる暗号文を生成(t *testing.T) {
 }
 
 func TestIsEncrypted_暗号化済みデータを検出(t *testing.T) {
-	resetState()
-
 	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -251,8 +234,6 @@ func TestIsEncrypted_暗号化済みデータを検出(t *testing.T) {
 }
 
 func TestIsEncrypted_平文は暗号化済みと判定しない(t *testing.T) {
-	resetState()
-
 	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	if err := Init(key); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -274,7 +255,7 @@ func TestIsEncrypted_平文は暗号化済みと判定しない(t *testing.T) {
 }
 
 func TestIsEncrypted_異なるキーの暗号文は検出しない(t *testing.T) {
-	// Encrypt with key1
+	// Encrypt with key1 (manually, outside package state)
 	key1Bytes, _ := hex.DecodeString("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	block1, _ := aes.NewCipher(key1Bytes)
 	gcm1, _ := cipher.NewGCM(block1)
@@ -283,7 +264,6 @@ func TestIsEncrypted_異なるキーの暗号文は検出しない(t *testing.T)
 	encoded := base64.StdEncoding.EncodeToString(ciphertext)
 
 	// Init with key2
-	resetState()
 	key2 := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
 	if err := Init(key2); err != nil {
 		t.Fatalf("Init failed: %v", err)

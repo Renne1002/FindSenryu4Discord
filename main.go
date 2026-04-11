@@ -141,6 +141,7 @@ func main() {
 		logger.Error("Failed to initialize encryption", "error", err)
 		os.Exit(1)
 	}
+	conf.Encryption.Key = "" // zero out key from config struct
 	if crypto.IsEnabled() {
 		logger.Info("Senryu encryption enabled")
 	}

@@ -13,9 +13,9 @@ import (
 )
 
 var (
+	mu      sync.Mutex
 	gcm     cipher.AEAD
 	enabled bool
-	once    sync.Once
 
 	ErrNotInitialized = errors.New("crypto: not initialized")
 	ErrInvalidKey     = errors.New("crypto: key must be 64 hex characters (32 bytes)")
@@ -24,35 +24,38 @@ var (
 
 // Init initializes the encryption module with a hex-encoded 32-byte key.
 // If hexKey is empty, encryption is disabled.
+// Init may be called multiple times to re-initialize with a different key.
+// It must be called before any concurrent use of Encrypt/Decrypt.
 func Init(hexKey string) error {
-	var initErr error
-	once.Do(func() {
-		if hexKey == "" {
-			enabled = false
-			return
-		}
+	mu.Lock()
+	defer mu.Unlock()
 
-		key, err := hex.DecodeString(hexKey)
-		if err != nil || len(key) != 32 {
-			initErr = ErrInvalidKey
-			return
-		}
+	// Reset state regardless of outcome
+	gcm = nil
+	enabled = false
 
-		block, err := aes.NewCipher(key)
-		if err != nil {
-			initErr = errors.Wrap(err, "crypto: failed to create cipher")
-			return
-		}
+	if hexKey == "" {
+		return nil
+	}
 
-		gcm, err = cipher.NewGCM(block)
-		if err != nil {
-			initErr = errors.Wrap(err, "crypto: failed to create GCM")
-			return
-		}
+	key, err := hex.DecodeString(hexKey)
+	if err != nil || len(key) != 32 {
+		return ErrInvalidKey
+	}
 
-		enabled = true
-	})
-	return initErr
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return errors.Wrap(err, "crypto: failed to create cipher")
+	}
+
+	g, err := cipher.NewGCM(block)
+	if err != nil {
+		return errors.Wrap(err, "crypto: failed to create GCM")
+	}
+
+	gcm = g
+	enabled = true
+	return nil
 }
 
 // IsEnabled returns true if encryption is initialized and enabled.
