@@ -27,3 +27,6 @@ enabled = false
 interval_hour = 24
 path = "data/backups"
 max_backups = 7
+
+[encryption]
+# key = ""  # hex-encoded 32-byte AES-256 key (openssl rand -hex 32)
