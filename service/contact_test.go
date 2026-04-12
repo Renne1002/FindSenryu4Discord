@@ -1,6 +1,7 @@
 package service
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/jinzhu/gorm"
@@ -17,8 +18,8 @@ func setupContactTestDB(t *testing.T) {
 		t.Fatalf("failed to open test database: %v", err)
 	}
 	db.DB.AutoMigrate(&model.Metadata{})
-	// Clear cache for test isolation
-	contactAdditionalMessageCache.Store("")
+	// Reset cache to zero value (nil = not loaded) for test isolation
+	contactAdditionalMessageCache = atomic.Value{}
 	t.Cleanup(func() {
 		db.DB.Close()
 	})

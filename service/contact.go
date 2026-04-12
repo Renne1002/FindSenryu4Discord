@@ -14,14 +14,15 @@ import (
 const metadataKeyContactAdditionalMessage = "contact_additional_message"
 
 // contactAdditionalMessageCache caches the additional message in memory.
-// Stored value is *string: nil = not loaded yet, empty string = no message set.
+// Stored value is *string: nil (zero Value) = not loaded yet,
+// empty *string = DB has no row, non-empty *string = cached value.
 var contactAdditionalMessageCache atomic.Value
 
 // GetContactAdditionalMessage returns the additional message for the /contact command.
 // Returns empty string if not set.
 func GetContactAdditionalMessage() (string, error) {
 	if cached := contactAdditionalMessageCache.Load(); cached != nil {
-		return cached.(string), nil
+		return *cached.(*string), nil
 	}
 
 	metrics.RecordDatabaseOperation("get_contact_additional_message")
@@ -30,7 +31,8 @@ func GetContactAdditionalMessage() (string, error) {
 	err := db.DB.Where("key = ?", metadataKeyContactAdditionalMessage).First(&meta).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			contactAdditionalMessageCache.Store("")
+			empty := ""
+			contactAdditionalMessageCache.Store(&empty)
 			return "", nil
 		}
 		metrics.RecordError("database")
@@ -38,7 +40,7 @@ func GetContactAdditionalMessage() (string, error) {
 		return "", errors.Wrap(err, "failed to get contact additional message")
 	}
 
-	contactAdditionalMessageCache.Store(meta.Value)
+	contactAdditionalMessageCache.Store(&meta.Value)
 	return meta.Value, nil
 }
 
@@ -55,7 +57,8 @@ func SetContactAdditionalMessage(message string) error {
 		return errors.Wrap(err, "failed to set contact additional message")
 	}
 
-	contactAdditionalMessageCache.Store(message)
+	msg := message
+	contactAdditionalMessageCache.Store(&msg)
 	logger.Info("Contact additional message updated", "message_length", len(message))
 	return nil
 }
@@ -71,7 +74,8 @@ func ClearContactAdditionalMessage() error {
 		return errors.Wrap(err, "failed to clear contact additional message")
 	}
 
-	contactAdditionalMessageCache.Store("")
+	empty := ""
+	contactAdditionalMessageCache.Store(&empty)
 	logger.Info("Contact additional message cleared")
 	return nil
 }

@@ -104,6 +104,20 @@ func HandleContactCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 // HandleContactProceedButton handles the "proceed to contact" button click.
 // Opens the contact modal for the user.
 func HandleContactProceedButton(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	userID := getUserID(i)
+
+	// クールダウンチェック
+	if last, ok := contactCooldowns.Load(userID); ok {
+		lastTime := last.(time.Time)
+		remaining := contactCooldown - time.Since(lastTime)
+		if remaining > 0 {
+			minutes := int(remaining.Minutes())
+			seconds := int(remaining.Seconds()) % 60
+			respondEphemeral(s, i, fmt.Sprintf("お問い合わせのクールダウン中です。あと %d分%d秒 お待ちください", minutes, seconds))
+			return
+		}
+	}
+
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
