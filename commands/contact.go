@@ -10,21 +10,24 @@ import (
 	"github.com/u16-io/FindSenryu4Discord/config"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/service"
 )
 
 const (
-	ContactModalCustomID  = "contact_modal"
-	ContactSubjectInputID = "contact_subject"
-	ContactMessageInputID = "contact_message"
-	ContactReplyPrefix    = "contact_reply:"
-	ReplyModalPrefix      = "reply_modal:"
-	ReplyMessageInputID   = "reply_message"
-	contactCooldown       = 5 * time.Minute
+	ContactModalCustomID   = "contact_modal"
+	ContactSubjectInputID  = "contact_subject"
+	ContactMessageInputID  = "contact_message"
+	ContactReplyPrefix     = "contact_reply:"
+	ReplyModalPrefix       = "reply_modal:"
+	ReplyMessageInputID    = "reply_message"
+	ContactProceedCustomID = "contact_proceed"
+	contactCooldown        = 5 * time.Minute
 )
 
 var contactCooldowns sync.Map // userID -> time.Time
 
-// HandleContactCommand handles the /contact slash command
+// HandleContactCommand handles the /contact slash command.
+// Shows an ephemeral guide message with FAQ link and /doctor info before the actual modal.
 func HandleContactCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	metrics.RecordCommandExecuted("contact")
 
@@ -42,7 +45,65 @@ func HandleContactCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		}
 	}
 
-	// モーダル表示
+	conf := config.GetConf()
+
+	// Embed構築
+	description := "川柳が検出されない・Botが動かないなどの問題は、まず `/doctor` コマンドで診断をお試しください。\n権限やチャンネル設定の問題を自動で確認できます。"
+
+	additionalMessage, err := service.GetContactAdditionalMessage()
+	if err != nil {
+		logger.Error("Failed to get contact additional message", "error", err)
+	}
+	if additionalMessage != "" {
+		description += "\n\n" + additionalMessage
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title:       "お問い合わせの前に",
+		Description: description,
+		Color:       0x5865F2,
+	}
+
+	// ボタン構築
+	var components []discordgo.MessageComponent
+
+	// FAQ URLがある場合はリンクボタンを含むActionRowを追加
+	if conf.Admin.ContactFaqURL != "" {
+		components = append(components, discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label: "よくある質問 (FAQ)",
+					Style: discordgo.LinkButton,
+					URL:   conf.Admin.ContactFaqURL,
+				},
+			},
+		})
+	}
+
+	// 「お問い合わせを続け���」ボタン
+	components = append(components, discordgo.ActionsRow{
+		Components: []discordgo.MessageComponent{
+			discordgo.Button{
+				Label:    "お問い合わせを続ける",
+				Style:    discordgo.PrimaryButton,
+				CustomID: ContactProceedCustomID,
+			},
+		},
+	})
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     []*discordgo.MessageEmbed{embed},
+			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+// HandleContactProceedButton handles the "proceed to contact" button click.
+// Opens the contact modal for the user.
+func HandleContactProceedButton(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
@@ -65,9 +126,9 @@ func HandleContactCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 					Components: []discordgo.MessageComponent{
 						discordgo.TextInput{
 							CustomID:    ContactMessageInputID,
-							Label:       "内容（送信前に /doctor コマンドもお試しください）",
+							Label:       "内容",
 							Style:       discordgo.TextInputParagraph,
-							Placeholder: "川柳が検出されない場合は、まず /doctor コマンドで診断をお試しください。権限やチャンネル設定の問題を自動で確認できます。",
+							Placeholder: "お問い合わせ内容を入力してください",
 							Required:    true,
 							MaxLength:   2000,
 						},
