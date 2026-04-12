@@ -475,6 +475,8 @@ func handleComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCr
 		commands.HandleDeleteConfirm(s, i)
 	case customID == commands.DeleteCancelCustomID:
 		commands.HandleDeleteCancel(s, i)
+	case strings.HasPrefix(customID, commands.DeletePagePrefix):
+		commands.HandleDeletePage(s, i)
 	case strings.HasPrefix(customID, commands.ContactReplyPrefix):
 		commands.HandleContactReplyButton(s, i)
 	case strings.HasPrefix(customID, commands.ChannelTogglePrefix):

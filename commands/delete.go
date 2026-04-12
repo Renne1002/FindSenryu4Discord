@@ -16,6 +16,9 @@ const (
 	DeleteSelectCustomID = "delete_select"
 	DeleteConfirmPrefix  = "delete_confirm:"
 	DeleteCancelCustomID = "delete_cancel"
+	DeletePagePrefix     = "delete_page:"
+
+	deletePageSize = 25
 )
 
 // HandleDeleteCommand handles the /delete slash command
@@ -50,23 +53,99 @@ func HandleDeleteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		},
 	})
 
-	senryus, err := service.GetRecentSenryusByAuthor(i.GuildID, targetUserID, 10)
+	total, err := service.CountSenryusByAuthor(i.GuildID, targetUserID)
 	if err != nil {
-		logger.Error("Failed to get senryus for delete", "error", err)
+		logger.Error("Failed to count senryus for delete", "error", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: strPtr("川柳の取得に失敗しました"),
 		})
 		return
 	}
 
-	if len(senryus) == 0 {
+	if total == 0 {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: strPtr("削除できる川柳がありません"),
 		})
 		return
 	}
 
-	// セレクトメニュー作成
+	content, components := buildDeletePage(i.GuildID, targetUserID, 0, total)
+	if components == nil {
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: strPtr("川柳の取得に失敗しました"),
+		})
+		return
+	}
+
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content:    &content,
+		Components: components,
+	})
+}
+
+// HandleDeletePage handles pagination button clicks for delete
+func HandleDeletePage(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	data := i.MessageComponentData()
+	parts := strings.SplitN(strings.TrimPrefix(data.CustomID, DeletePagePrefix), ":", 3)
+	if len(parts) != 3 {
+		respondComponentUpdate(s, i, "無効な操作です")
+		return
+	}
+
+	guildID := parts[0]
+	targetUserID := parts[1]
+	page, err := strconv.Atoi(parts[2])
+	if err != nil || page < 0 {
+		respondComponentUpdate(s, i, "無効な操作です")
+		return
+	}
+
+	total, err := service.CountSenryusByAuthor(guildID, targetUserID)
+	if err != nil {
+		logger.Error("Failed to count senryus for delete page", "error", err)
+		respondComponentUpdate(s, i, "川柳の取得に失敗しました")
+		return
+	}
+
+	if total == 0 {
+		respondComponentUpdate(s, i, "削除できる川柳がありません")
+		return
+	}
+
+	content, components := buildDeletePage(guildID, targetUserID, page, total)
+	if components == nil {
+		respondComponentUpdate(s, i, "川柳の取得に失敗しました")
+		return
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Content:    content,
+			Components: componentsToSlice(components),
+		},
+	})
+}
+
+// buildDeletePage builds the select menu and pagination buttons for a given page.
+// Returns the message content and components. components is nil on error.
+func buildDeletePage(guildID, targetUserID string, page, total int) (string, *[]discordgo.MessageComponent) {
+	totalPages := (total + deletePageSize - 1) / deletePageSize
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+
+	offset := page * deletePageSize
+	senryus, err := service.GetSenryusByAuthorPaged(guildID, targetUserID, deletePageSize, offset)
+	if err != nil {
+		logger.Error("Failed to get senryus for delete page", "error", err)
+		return "", nil
+	}
+
+	if len(senryus) == 0 {
+		return "削除できる川柳がありません", nil
+	}
+
 	menuOptions := make([]discordgo.SelectMenuOption, 0, len(senryus))
 	for _, sr := range senryus {
 		text := fmt.Sprintf("%s %s %s", sr.Kamigo, sr.Nakasichi, sr.Simogo)
@@ -74,25 +153,71 @@ func HandleDeleteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			text = "🔒 " + text
 		}
 		menuOptions = append(menuOptions, discordgo.SelectMenuOption{
-			Label: text,
+			Label: truncateLabel(text),
 			Value: strconv.Itoa(sr.ID),
 		})
 	}
 
-	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: strPtr("削除する川柳を選んでください:"),
-		Components: &[]discordgo.MessageComponent{
-			discordgo.ActionsRow{
-				Components: []discordgo.MessageComponent{
-					discordgo.SelectMenu{
-						CustomID:    DeleteSelectCustomID,
-						Placeholder: "川柳を選択",
-						Options:     menuOptions,
-					},
+	var content string
+	if totalPages > 1 {
+		content = fmt.Sprintf("削除する川柳を選んでください（%d/%dページ, 全%d件）:", page+1, totalPages, total)
+	} else {
+		content = "削除する川柳を選んでください:"
+	}
+
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.SelectMenu{
+					CustomID:    DeleteSelectCustomID,
+					Placeholder: "川柳を選択",
+					Options:     menuOptions,
 				},
 			},
 		},
-	})
+	}
+
+	// Add pagination buttons if there are multiple pages
+	if totalPages > 1 {
+		prevID := fmt.Sprintf("%s%s:%s:%d", DeletePagePrefix, guildID, targetUserID, page-1)
+		nextID := fmt.Sprintf("%s%s:%s:%d", DeletePagePrefix, guildID, targetUserID, page+1)
+
+		components = append(components, discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "◀ 前へ",
+					Style:    discordgo.SecondaryButton,
+					CustomID: prevID,
+					Disabled: page == 0,
+				},
+				discordgo.Button{
+					Label:    "次へ ▶",
+					Style:    discordgo.SecondaryButton,
+					CustomID: nextID,
+					Disabled: page >= totalPages-1,
+				},
+			},
+		})
+	}
+
+	return content, &components
+}
+
+// componentsToSlice converts *[]discordgo.MessageComponent to []discordgo.MessageComponent.
+func componentsToSlice(c *[]discordgo.MessageComponent) []discordgo.MessageComponent {
+	if c == nil {
+		return nil
+	}
+	return *c
+}
+
+// truncateLabel truncates a label to fit Discord's 100-character limit for SelectMenuOption.
+func truncateLabel(s string) string {
+	r := []rune(s)
+	if len(r) <= 100 {
+		return s
+	}
+	return string(r[:97]) + "..."
 }
 
 // HandleDeleteSelectMenu handles the select menu interaction for delete
