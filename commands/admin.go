@@ -221,6 +221,13 @@ func isServerAdmin(i *discordgo.InteractionCreate) bool {
 	return i.Member.Permissions&discordgo.PermissionAdministrator != 0
 }
 
+func canManageChannel(i *discordgo.InteractionCreate) bool {
+	if i.Member == nil {
+		return false
+	}
+	return i.Member.Permissions&(discordgo.PermissionAdministrator|discordgo.PermissionManageChannels) != 0
+}
+
 func respondError(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
