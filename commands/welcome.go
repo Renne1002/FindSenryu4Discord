@@ -69,31 +69,19 @@ func hasChannelSendPermission(s *discordgo.Session, channelID string) bool {
 }
 
 func resolveWelcomeChannel(s *discordgo.Session, g *discordgo.Guild) string {
-	// Check SystemChannelID first, but only if the bot has SendMessages permission
-	if g.SystemChannelID != "" {
-		if hasChannelSendPermission(s, g.SystemChannelID) {
-			return g.SystemChannelID
-		}
-		logger.Debug("SystemChannelID lacks SendMessages permission, falling back",
-			"guild_id", g.ID, "system_channel_id", g.SystemChannelID)
-	}
-
-	channels, err := s.GuildChannels(g.ID)
-	if err != nil {
-		logger.Warn("Failed to get guild channels for welcome message", "error", err, "guild_id", g.ID)
+	if g.SystemChannelID == "" {
+		logger.Info("SystemChannelID is not set, skipping welcome message",
+			"guild_id", g.ID)
 		return ""
 	}
 
-	for _, ch := range channels {
-		if ch.Type != discordgo.ChannelTypeGuildText {
-			continue
-		}
-		if hasChannelSendPermission(s, ch.ID) {
-			return ch.ID
-		}
+	if !hasChannelSendPermission(s, g.SystemChannelID) {
+		logger.Warn("SystemChannelID lacks SendMessages permission, skipping welcome message",
+			"guild_id", g.ID, "system_channel_id", g.SystemChannelID)
+		return ""
 	}
 
-	return ""
+	return g.SystemChannelID
 }
 
 // isPermanentSendError returns true if the error indicates a permanent failure
@@ -109,7 +97,7 @@ func isPermanentSendError(err error) bool {
 	return false
 }
 
-// SendWelcomeMessage sends a welcome embed to the guild's system channel (or first writable text channel).
+// SendWelcomeMessage sends a welcome embed to the guild's system channel.
 func SendWelcomeMessage(s *discordgo.Session, g *discordgo.GuildCreate) {
 	conf := config.GetConf()
 	if !conf.Discord.IsWelcomeEnabled() {

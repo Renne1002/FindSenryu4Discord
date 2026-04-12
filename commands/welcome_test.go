@@ -106,16 +106,14 @@ func TestResolveWelcomeChannel_SystemChannelIDが空文字(t *testing.T) {
 		SystemChannelID: "",
 	}
 
-	// SystemChannelID empty -> falls through to GuildChannels API call.
-	// Without a real HTTP backend the API call returns an error,
-	// so resolveWelcomeChannel should return "".
+	// SystemChannelID empty -> no fallback, just return "".
 	s, _ := discordgo.New("Bot fake-token")
 	s.State = discordgo.NewState()
 	s.State.TrackChannels = true
 
 	got := resolveWelcomeChannel(s, guild)
 	if got != "" {
-		t.Errorf("resolveWelcomeChannel() = %q, want empty string when API unavailable", got)
+		t.Errorf("resolveWelcomeChannel() = %q, want empty string when SystemChannelID is not set", got)
 	}
 }
 

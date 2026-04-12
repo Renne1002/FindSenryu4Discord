@@ -117,10 +117,11 @@ func Load(configPath string) (*Config, error) {
 	return conf, loadErr
 }
 
+func boolPtr(v bool) *bool { return &v }
+
 func setDefaults(c *Config) {
 	if c.Discord.WelcomeEnabled == nil {
-		t := true
-		c.Discord.WelcomeEnabled = &t
+		c.Discord.WelcomeEnabled = boolPtr(true)
 	}
 	if c.Database.Driver == "" {
 		c.Database.Driver = "sqlite3"
