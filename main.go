@@ -267,8 +267,9 @@ func main() {
 	// Conditionally add /contact command
 	if conf.Admin.ContactChannelID != "" {
 		userCommands = append(userCommands, &discordgo.ApplicationCommand{
-			Name:        "contact",
-			Description: "Bot管理者にお問い合わせを送信します",
+			Name:                     "contact",
+			Description:              "Bot管理者にお問い合わせを送信します",
+			DefaultMemberPermissions: &adminPermission,
 		})
 	}
 
@@ -514,8 +515,8 @@ func handleComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCr
 		commands.HandleDeleteCancel(s, i)
 	case strings.HasPrefix(customID, commands.DeletePagePrefix):
 		commands.HandleDeletePage(s, i)
-	case customID == commands.ContactProceedCustomID:
-		commands.HandleContactProceedButton(s, i)
+	case customID == commands.ContactCategoryCustomID:
+		commands.HandleContactCategorySelect(s, i)
 	case strings.HasPrefix(customID, commands.ContactReplyPrefix):
 		commands.HandleContactReplyButton(s, i)
 	case strings.HasPrefix(customID, commands.ChannelTogglePrefix):

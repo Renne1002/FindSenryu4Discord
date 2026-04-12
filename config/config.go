@@ -55,7 +55,6 @@ type AdminConfig struct {
 	LogChannelID     string   `koanf:"log_channel_id"`     // Real-time notification channel (guild join/leave)
 	ReportChannelID  string   `koanf:"report_channel_id"`  // Daily report channel
 	ContactChannelID string   `koanf:"contact_channel_id"` // Contact notification channel (future use)
-	ContactFaqURL    string   `koanf:"contact_faq_url"`    // FAQ page URL shown in /contact
 }
 
 // ServerConfig holds HTTP server configuration
