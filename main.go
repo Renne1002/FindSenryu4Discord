@@ -42,14 +42,19 @@ var (
 	// adminPermission is used for DefaultMemberPermissions on admin-only commands.
 	adminPermission int64 = discordgo.PermissionAdministrator
 
+	// manageChannelPermission is used for DefaultMemberPermissions on channel management commands.
+	manageChannelPermission int64 = discordgo.PermissionManageChannels
+
 	userCommands = []*discordgo.ApplicationCommand{
 		{
-			Name:        "mute",
-			Description: "このチャンネルでの川柳検出をミュートします",
+			Name:                     "mute",
+			Description:              "このチャンネルでの川柳検出をミュートします",
+			DefaultMemberPermissions: &manageChannelPermission,
 		},
 		{
-			Name:        "unmute",
-			Description: "このチャンネルでの川柳検出のミュートを解除します",
+			Name:                     "unmute",
+			Description:              "このチャンネルでの川柳検出のミュートを解除します",
+			DefaultMemberPermissions: &manageChannelPermission,
 		},
 		{
 			Name:        "rank",
@@ -100,8 +105,8 @@ var (
 	}
 
 	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		"mute":    handleMuteCommand,
-		"unmute":  handleUnmuteCommand,
+		"mute":    commands.HandleMuteCommand,
+		"unmute":  commands.HandleUnmuteCommand,
 		"rank":    handleRankCommand,
 		"channel": commands.HandleChannelCommand,
 		"delete":  commands.HandleDeleteCommand,
@@ -583,50 +588,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 var medals = []string{"🥇", "🥈", "🥉", "🎖️", "🎖️"}
-
-func handleMuteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	metrics.RecordCommandExecuted("mute")
-
-	if err := service.ToMute(i.ChannelID, i.GuildID); err != nil {
-		logger.Error("Failed to mute channel", "error", err, "channel_id", i.ChannelID)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "ミュートに失敗しました ❌",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-	} else {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "このチャンネルでの川柳検出をミュートしました ✅",
-			},
-		})
-	}
-}
-
-func handleUnmuteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	metrics.RecordCommandExecuted("unmute")
-
-	if err := service.ToUnMute(i.ChannelID); err != nil {
-		logger.Error("Failed to unmute channel", "error", err, "channel_id", i.ChannelID)
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "ミュート解除に失敗しました ❌",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-	} else {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "このチャンネルでの川柳検出のミュートを解除しました ✅",
-			},
-		})
-	}
-}
 
 func handleRankCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	metrics.RecordCommandExecuted("rank")

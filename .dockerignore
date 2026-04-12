@@ -1,5 +1,6 @@
 *
 !**/*.go
+!**/*.sql
 !go.mod
 !go.sum
 !config.toml
