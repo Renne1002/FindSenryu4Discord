@@ -1,9 +1,9 @@
 package service
 
 import (
-	"strings"
 	"testing"
 
+	"github.com/cockroachdb/errors"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/u16-io/FindSenryu4Discord/db"
@@ -24,6 +24,10 @@ func setupSenryuTestDB(t *testing.T) {
 	t.Cleanup(func() {
 		db.DB.Close()
 	})
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 func TestCreateSenryu_暗号化有効時にDBに平文が保存されない(t *testing.T) {
@@ -130,7 +134,7 @@ func TestGetSenryuByID_暗号化有効時に平文が復元される(t *testing.
 	}
 }
 
-func TestGetLastSenryu_暗号化有効時に復号された文字列を返す(t *testing.T) {
+func TestGetLastSenryu_暗号化有効時に復号されたデータを返す(t *testing.T) {
 	setupSenryuTestDB(t)
 	if err := crypto.Init(testEncryptionKey); err != nil {
 		t.Fatalf("crypto init failed: %v", err)
@@ -149,19 +153,19 @@ func TestGetLastSenryu_暗号化有効時に復号された文字列を返す(t 
 		t.Fatalf("CreateSenryu failed: %v", err)
 	}
 
-	result, err := GetLastSenryu("server1", "author1")
+	got, err := GetLastSenryu("server1")
 	if err != nil {
 		t.Fatalf("GetLastSenryu failed: %v", err)
 	}
 
-	if !strings.Contains(result, "春すぎて") {
-		t.Errorf("result should contain decrypted Kamigo, got: %s", result)
+	if got.Kamigo != "春すぎて" {
+		t.Errorf("Kamigo: expected %q, got %q", "春すぎて", got.Kamigo)
 	}
-	if !strings.Contains(result, "夏来にけらし") {
-		t.Errorf("result should contain decrypted Nakasichi, got: %s", result)
+	if got.Nakasichi != "夏来にけらし" {
+		t.Errorf("Nakasichi: expected %q, got %q", "夏来にけらし", got.Nakasichi)
 	}
-	if !strings.Contains(result, "白妙の") {
-		t.Errorf("result should contain decrypted Simogo, got: %s", result)
+	if got.Simogo != "白妙の" {
+		t.Errorf("Simogo: expected %q, got %q", "白妙の", got.Simogo)
 	}
 }
 
@@ -635,5 +639,111 @@ func TestCountSenryusByAuthor_別ユーザーは含まない(t *testing.T) {
 	}
 	if count != 5 {
 		t.Errorf("expected 5, got %d", count)
+	}
+}
+
+func TestGetLastSenryu_最後の川柳を返す(t *testing.T) {
+	setupSenryuTestDB(t)
+
+	db.DB.Create(&model.Senryu{
+		ServerID: "guild1", AuthorID: "user1",
+		Kamigo: "古池や", Nakasichi: "蛙飛び込む", Simogo: "水の音",
+		Spoiler: boolPtr(false),
+	})
+	db.DB.Create(&model.Senryu{
+		ServerID: "guild1", AuthorID: "user2",
+		Kamigo: "柿くへば", Nakasichi: "鐘が鳴るなり", Simogo: "法隆寺",
+		Spoiler: boolPtr(false),
+	})
+
+	got, err := GetLastSenryu("guild1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.AuthorID != "user2" {
+		t.Errorf("AuthorID = %q, want %q", got.AuthorID, "user2")
+	}
+	if got.Kamigo != "柿くへば" {
+		t.Errorf("Kamigo = %q, want %q", got.Kamigo, "柿くへば")
+	}
+	if got.Nakasichi != "鐘が鳴るなり" {
+		t.Errorf("Nakasichi = %q, want %q", got.Nakasichi, "鐘が鳴るなり")
+	}
+	if got.Simogo != "法隆寺" {
+		t.Errorf("Simogo = %q, want %q", got.Simogo, "法隆寺")
+	}
+}
+
+func TestGetLastSenryu_川柳が存在しない場合(t *testing.T) {
+	setupSenryuTestDB(t)
+
+	_, err := GetLastSenryu("guild1")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, ErrSenryuNotFound) {
+		t.Errorf("error = %v, want ErrSenryuNotFound", err)
+	}
+}
+
+func TestGetLastSenryu_サーバーごとに独立(t *testing.T) {
+	setupSenryuTestDB(t)
+
+	db.DB.Create(&model.Senryu{
+		ServerID: "guild1", AuthorID: "user1",
+		Kamigo: "古池や", Nakasichi: "蛙飛び込む", Simogo: "水の音",
+		Spoiler: boolPtr(false),
+	})
+	db.DB.Create(&model.Senryu{
+		ServerID: "guild2", AuthorID: "user2",
+		Kamigo: "柿くへば", Nakasichi: "鐘が鳴るなり", Simogo: "法隆寺",
+		Spoiler: boolPtr(false),
+	})
+
+	got, err := GetLastSenryu("guild1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.AuthorID != "user1" {
+		t.Errorf("AuthorID = %q, want %q", got.AuthorID, "user1")
+	}
+	if got.ServerID != "guild1" {
+		t.Errorf("ServerID = %q, want %q", got.ServerID, "guild1")
+	}
+}
+
+func TestGetLastSenryu_スポイラー付き川柳(t *testing.T) {
+	setupSenryuTestDB(t)
+
+	db.DB.Create(&model.Senryu{
+		ServerID: "guild1", AuthorID: "user1",
+		Kamigo: "秘密の", Nakasichi: "内容が含まれる", Simogo: "川柳だ",
+		Spoiler: boolPtr(true),
+	})
+
+	got, err := GetLastSenryu("guild1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Spoiler == nil || !*got.Spoiler {
+		t.Error("Spoiler should be true")
+	}
+}
+
+func TestGetLastSenryu_スポイラーなし川柳(t *testing.T) {
+	setupSenryuTestDB(t)
+
+	db.DB.Create(&model.Senryu{
+		ServerID: "guild1", AuthorID: "user1",
+		Kamigo: "古池や", Nakasichi: "蛙飛び込む", Simogo: "水の音",
+		Spoiler: boolPtr(false),
+	})
+
+	got, err := GetLastSenryu("guild1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Spoiler == nil || *got.Spoiler {
+		t.Error("Spoiler should be false")
 	}
 }
