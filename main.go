@@ -528,7 +528,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				return
 			}
 			h := findHaikuSafe(content, []int{5, 7, 5})
-			if len(h) != 0 && !strings.Contains(h[0], "\n") {
+			if len(h) != 0 && !haikuSpansNewline(content, h[0]) {
 				senryu := strings.Split(h[0], " ")
 				created, err := service.CreateSenryu(
 					model.Senryu{
@@ -800,6 +800,14 @@ func containsSpoiler(s string) bool {
 
 func stripSpoilerMarkers(s string) string {
 	return strings.ReplaceAll(s, "||", "")
+}
+
+func haikuSpansNewline(content, haikuResult string) bool {
+	if !strings.Contains(content, "\n") {
+		return false
+	}
+	matched := strings.ReplaceAll(haikuResult, " ", "")
+	return !strings.Contains(content, matched)
 }
 
 func isJapaneseRich(s string) bool {

@@ -204,6 +204,82 @@ func TestIsJapaneseRich(t *testing.T) {
 	}
 }
 
+func TestHaikuSpansNewline(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		haikuResult string
+		want        bool
+	}{
+		{"改行なし", "古池や蛙飛びこむ水の音", "古池や 蛙飛びこむ 水の音", false},
+		{"改行あり結果がまたぐ", "古池や蛙飛びこむ\n水の音", "古池や 蛙飛びこむ 水の音", true},
+		{"3行書き", "古池や\n蛙飛びこむ\n水の音", "古池や 蛙飛びこむ 水の音", true},
+		{"改行後に完全な俳句", "こんにちは\n古池や蛙飛びこむ水の音", "古池や 蛙飛びこむ 水の音", false},
+		{"俳句後に改行", "古池や蛙飛びこむ水の音\nさようなら", "古池や 蛙飛びこむ 水の音", false},
+		{"空文字列", "", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := haikuSpansNewline(tt.content, tt.haikuResult)
+			if got != tt.want {
+				t.Errorf("haikuSpansNewline(%q, %q) = %v, want %v", tt.content, tt.haikuResult, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDetectionFiltering_統合テスト(t *testing.T) {
+	tests := []struct {
+		name       string
+		content    string
+		wantFilter bool // true = should be filtered out (not detected as senryu)
+		reason     string
+	}{
+		{
+			"コードブロック内の日本語",
+			"```\n古池や蛙飛びこむ水の音\n```",
+			true,
+			"コードブロック除去後に日本語が残らない",
+		},
+		{
+			"インラインコード内の日本語",
+			"`古池や蛙飛びこむ水の音`",
+			true,
+			"インラインコード除去後に日本語が残らない",
+		},
+		{
+			"英語のみのテキスト",
+			"the quick brown fox jumps over lazy dog",
+			true,
+			"日本語比率が低い",
+		},
+		{
+			"コードっぽいテキスト",
+			"func main() { fmt.Println(hello) }",
+			true,
+			"日本語比率が低い",
+		},
+		{
+			"コードブロック外の日本語テキスト",
+			"```go\nfmt.Println()\n```\n普通の日本語テキスト",
+			false,
+			"コードブロック除去後に日本語が残る",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := stripCodeBlocks(tt.content)
+			filtered := !isJapaneseRich(content)
+			if filtered != tt.wantFilter {
+				t.Errorf("content=%q -> stripCodeBlocks=%q -> isJapaneseRich=%v, wantFilter=%v (%s)",
+					tt.content, content, !filtered, tt.wantFilter, tt.reason)
+			}
+		})
+	}
+}
+
 func TestIsParentChannelMuted_親チャンネルがミュート(t *testing.T) {
 	setupTestDB(t)
 
