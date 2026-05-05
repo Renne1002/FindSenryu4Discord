@@ -10,6 +10,7 @@ import (
 	"github.com/u16-io/FindSenryu4Discord/config"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/pkg/msgtmpl"
 	"github.com/u16-io/FindSenryu4Discord/service"
 )
 
@@ -34,13 +35,13 @@ func HandleContactCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 
 	// DM防止
 	if i.GuildID == "" {
-		respondEphemeral(s, i, "このコマンドはサーバー内でのみ使用できます")
+		respondEphemeral(s, i, msgtmpl.Get("contact.guild_only", "このコマンドはサーバー内でのみ使用できます"))
 		return
 	}
 
 	// サーバー管理者チェック（2層防御）
 	if !isServerAdmin(i) {
-		respondEphemeral(s, i, "このコマンドはサーバー管理者のみ使用できます")
+		respondEphemeral(s, i, msgtmpl.Get("contact.admin_only", "このコマンドはサーバー管理者のみ使用できます"))
 		return
 	}
 
@@ -53,13 +54,13 @@ func HandleContactCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		if remaining > 0 {
 			minutes := int(remaining.Minutes())
 			seconds := int(remaining.Seconds()) % 60
-			respondEphemeral(s, i, fmt.Sprintf("お問い合わせのクールダウン中です。あと %d分%d秒 お待ちください", minutes, seconds))
+			respondEphemeral(s, i, msgtmpl.Format("contact.cooldown", "お問い合わせのクールダウン中です。あと %d分%d秒 お待ちください", minutes, seconds))
 			return
 		}
 	}
 
 	// Embed構築
-	description := "お困りの内容に近いカテゴリを選択してください。\n該当するものがない場合は「その他のお問い合わせ」からメッセージを送信できます。"
+	description := msgtmpl.Get("contact.embed_description", "お困りの内容に近いカテゴリを選択してください。\n該当するものがない場合は「その他のお問い合わせ」からメッセージを送信できます。")
 
 	additionalMessage, err := service.GetContactAdditionalMessage()
 	if err != nil {
@@ -70,11 +71,11 @@ func HandleContactCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       "お問い合わせ",
+		Title:       msgtmpl.Get("contact.embed_title", "お問い合わせ"),
 		Description: description,
 		Color:       0x5865F2,
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: "💡 Botの動作に問題がある場合は /doctor コマンドもお試しください",
+			Text: msgtmpl.Get("contact.embed_footer", "💡 Botの動作に問題がある場合は /doctor コマンドもお試しください"),
 		},
 	}
 
@@ -84,7 +85,7 @@ func HandleContactCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 			Components: []discordgo.MessageComponent{
 				discordgo.SelectMenu{
 					CustomID:    ContactCategoryCustomID,
-					Placeholder: "カテゴリを選択してください",
+					Placeholder: msgtmpl.Get("contact.category_placeholder", "カテゴリを選択してください"),
 					Options: []discordgo.SelectMenuOption{
 						{
 							Label: "川柳が検出されない・精度が悪い",
@@ -141,7 +142,7 @@ func HandleContactCategorySelect(s *discordgo.Session, i *discordgo.InteractionC
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "こちらのFAQページで解決策をご確認ください。",
+				Content: msgtmpl.Get("contact.faq_prompt", "こちらのFAQページで解決策をご確認ください。"),
 				Components: []discordgo.MessageComponent{
 					discordgo.ActionsRow{
 						Components: []discordgo.MessageComponent{
@@ -167,7 +168,7 @@ func HandleContactCategorySelect(s *discordgo.Session, i *discordgo.InteractionC
 			if remaining > 0 {
 				minutes := int(remaining.Minutes())
 				seconds := int(remaining.Seconds()) % 60
-				respondEphemeral(s, i, fmt.Sprintf("お問い合わせのクールダウン中です。あと %d分%d秒 お待ちください", minutes, seconds))
+				respondEphemeral(s, i, msgtmpl.Format("contact.cooldown", "お問い合わせのクールダウン中です。あと %d分%d秒 お待ちください", minutes, seconds))
 				return
 			}
 		}
@@ -176,15 +177,15 @@ func HandleContactCategorySelect(s *discordgo.Session, i *discordgo.InteractionC
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
 				CustomID: ContactModalCustomID,
-				Title:    "お問い合わせ",
+				Title:    msgtmpl.Get("contact.modal_title", "お問い合わせ"),
 				Components: []discordgo.MessageComponent{
 					discordgo.ActionsRow{
 						Components: []discordgo.MessageComponent{
 							discordgo.TextInput{
 								CustomID:    ContactSubjectInputID,
-								Label:       "件名",
+								Label:       msgtmpl.Get("contact.modal_subject_label", "件名"),
 								Style:       discordgo.TextInputShort,
-								Placeholder: "件名を入力してください",
+								Placeholder: msgtmpl.Get("contact.modal_subject_placeholder", "件名を入力してください"),
 								Required:    true,
 								MaxLength:   100,
 							},
@@ -194,9 +195,9 @@ func HandleContactCategorySelect(s *discordgo.Session, i *discordgo.InteractionC
 						Components: []discordgo.MessageComponent{
 							discordgo.TextInput{
 								CustomID:    ContactMessageInputID,
-								Label:       "内容",
+								Label:       msgtmpl.Get("contact.modal_message_label", "内容"),
 								Style:       discordgo.TextInputParagraph,
-								Placeholder: "お問い合わせ内容を入力してください",
+								Placeholder: msgtmpl.Get("contact.modal_message_placeholder", "お問い合わせ内容を入力してください"),
 								Required:    true,
 								MaxLength:   2000,
 							},
@@ -301,11 +302,11 @@ func HandleContactModalSubmit(s *discordgo.Session, i *discordgo.InteractionCrea
 	})
 	if err != nil {
 		logger.Error("Failed to send contact message", "error", err, "channel_id", contactChannelID)
-		respondEphemeral(s, i, "お問い合わせの送信に失敗しました")
+		respondEphemeral(s, i, msgtmpl.Get("contact.send_failed", "お問い合わせの送信に失敗しました"))
 		return
 	}
 
-	respondEphemeral(s, i, "お問い合わせを送信しました ✅")
+	respondEphemeral(s, i, msgtmpl.Get("contact.send_success", "お問い合わせを送信しました ✅"))
 }
 
 // parseReplyTarget parses "userID:channelID" from customID payload.
@@ -326,15 +327,15 @@ func HandleContactReplyButton(s *discordgo.Session, i *discordgo.InteractionCrea
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
 			CustomID: ReplyModalPrefix + payload,
-			Title:    "返信",
+			Title:    msgtmpl.Get("contact.reply_modal_title", "返信"),
 			Components: []discordgo.MessageComponent{
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
 						discordgo.TextInput{
 							CustomID:    ReplyMessageInputID,
-							Label:       "返信内容",
+							Label:       msgtmpl.Get("contact.reply_modal_message_label", "返信内容"),
 							Style:       discordgo.TextInputParagraph,
-							Placeholder: "返信内容を入力してください",
+							Placeholder: msgtmpl.Get("contact.reply_modal_message_placeholder", "返信内容を入力してください"),
 							Required:    true,
 							MaxLength:   2000,
 						},
@@ -361,7 +362,7 @@ func HandleContactReplyModalSubmit(s *discordgo.Session, i *discordgo.Interactio
 	replyMessage := getModalInputValue(data, ReplyMessageInputID)
 
 	replyEmbed := &discordgo.MessageEmbed{
-		Title:       "お問い合わせへの返信",
+		Title:       msgtmpl.Get("contact.reply_embed_title", "お問い合わせへの返信"),
 		Description: replyMessage,
 		Color:       0x5865F2,
 		Author: &discordgo.MessageEmbedAuthor{
@@ -388,20 +389,20 @@ func HandleContactReplyModalSubmit(s *discordgo.Session, i *discordgo.Interactio
 
 		if sourceChannelID == "" {
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: strPtr("DMの送信に失敗しました。送信元チャンネルの情報がないため、返信できませんでした。"),
+				Content: strPtr(msgtmpl.Get("contact.reply_dm_failed_no_channel", "DMの送信に失敗しました。送信元チャンネルの情報がないため、返信できませんでした。")),
 			})
 			return
 		}
 
 		_, err = s.ChannelMessageSendComplex(sourceChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@%s> お問い合わせへの返信です:", targetUserID),
+			Content: msgtmpl.Format("contact.reply_channel_prefix", "<@%s> お問い合わせへの返信です:", targetUserID),
 			Embeds:  []*discordgo.MessageEmbed{replyEmbed},
 		})
 		if err != nil {
 			logger.Error("Failed to send channel reply", "error", err,
 				"user_id", targetUserID, "channel_id", sourceChannelID)
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: strPtr("DMおよびチャンネルへの返信に失敗しました。"),
+				Content: strPtr(msgtmpl.Get("contact.reply_all_failed", "DMおよびチャンネルへの返信に失敗しました。")),
 			})
 			return
 		}
@@ -451,10 +452,10 @@ func HandleContactReplyModalSubmit(s *discordgo.Session, i *discordgo.Interactio
 
 	if sentViaDM {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: strPtr("DMで返信を送信しました ✅"),
+			Content: strPtr(msgtmpl.Get("contact.reply_dm_success", "DMで返信を送信しました ✅")),
 		})
 	} else {
-		msg := fmt.Sprintf("DMの送信に失敗したため、%s に返信しました ✅", channelLabel(s, sourceChannelID))
+		msg := msgtmpl.Format("contact.reply_channel_success", "DMの送信に失敗したため、%s に返信しました ✅", channelLabel(s, sourceChannelID))
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: strPtr(msg),
 		})
@@ -466,9 +467,9 @@ func HandleContactReplyModalSubmit(s *discordgo.Session, i *discordgo.Interactio
 func channelLabel(s *discordgo.Session, channelID string) string {
 	ch, err := s.Channel(channelID)
 	if err != nil {
-		return fmt.Sprintf("チャンネル (`%s`)", channelID)
+		return msgtmpl.Format("contact.channel_label_fallback", "チャンネル (`%s`)", channelID)
 	}
-	return fmt.Sprintf("#%s (`%s`)", ch.Name, channelID)
+	return msgtmpl.Format("contact.channel_label", "#%s (`%s`)", ch.Name, channelID)
 }
 
 // getModalInputValue extracts a text input value from modal submit data

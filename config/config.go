@@ -27,6 +27,7 @@ type Config struct {
 	Server     ServerConfig     `koanf:"server"`
 	Backup     BackupConfig     `koanf:"backup"`
 	Encryption EncryptionConfig `koanf:"encryption"`
+	Messages   map[string]string `koanf:"messages"`
 }
 
 // DiscordConfig holds Discord-related configuration
@@ -146,6 +147,9 @@ func setDefaults(c *Config) {
 	}
 	if c.Backup.MaxBackups == 0 {
 		c.Backup.MaxBackups = 7
+	}
+	if c.Messages == nil {
+		c.Messages = map[string]string{}
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/u16-io/FindSenryu4Discord/pkg/health"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/pkg/msgtmpl"
 	"github.com/u16-io/FindSenryu4Discord/pkg/permissions"
 	"github.com/u16-io/FindSenryu4Discord/service"
 
@@ -526,7 +527,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// DM channels are not supported
 	switch ch.Type {
 	case discordgo.ChannelTypeDM, discordgo.ChannelTypeGroupDM:
-		s.ChannelMessageSend(m.ChannelID, "個チャはダメです")
+		s.ChannelMessageSend(m.ChannelID, msgtmpl.Get("main.dm_not_supported", "個チャはダメです"))
 		return
 	}
 
@@ -579,9 +580,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 					metrics.RecordError("database")
 					return
 				}
-				replyText := fmt.Sprintf("川柳を検出しました！\n「%s」", h[0])
+				replyText := msgtmpl.Format("main.detect_reply", "川柳を検出しました！\n「%s」", h[0])
 				if spoiler {
-					replyText = fmt.Sprintf("川柳を検出しました！\n||「%s」||", h[0])
+					replyText = msgtmpl.Format("main.detect_reply_spoiler", "川柳を検出しました！\n||「%s」||", h[0])
 				}
 				if _, err := s.ChannelMessageSendReply(
 					m.ChannelID,
@@ -621,7 +622,7 @@ func handleRankCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "ランキングの取得に失敗しました",
+				Content: msgtmpl.Get("main.rank_fetch_failed", "ランキングの取得に失敗しました"),
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -643,15 +644,15 @@ func handleRankCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	embed := discordgo.MessageEmbed{
 		Type:      discordgo.EmbedTypeRich,
-		Title:     "サーバー内ランキング",
+		Title:     msgtmpl.Get("main.rank_title", "サーバー内ランキング"),
 		Timestamp: time.Now().Format(time.RFC3339),
 		Fields:    []*discordgo.MessageEmbedField{},
 	}
 	if statsErr == nil {
 		if stats.TotalSenryus == 0 {
-			embed.Description = "まだ誰も詠んでいません"
+			embed.Description = msgtmpl.Get("main.rank_empty", "まだ誰も詠んでいません")
 		} else {
-			embed.Description = fmt.Sprintf("累計 **%d** 句 / **%d** 人の詠み手", stats.TotalSenryus, stats.UniqueAuthors)
+			embed.Description = msgtmpl.Format("main.rank_summary", "累計 **%d** 句 / **%d** 人の詠み手", stats.TotalSenryus, stats.UniqueAuthors)
 		}
 	}
 	if guild != nil {
@@ -695,11 +696,11 @@ func handleYomeYomuna(m *discordgo.MessageCreate, s *discordgo.Session) bool {
 			return true
 		}
 		if len(senryus) == 0 {
-			if _, err := s.ChannelMessageSend(m.ChannelID, "まだ誰も詠んでいません。あなたが先に詠んでください。"); err != nil {
+			if _, err := s.ChannelMessageSend(m.ChannelID, msgtmpl.Get("main.yome_empty", "まだ誰も詠んでいません。あなたが先に詠んでください。")); err != nil {
 				logger.Warn("Failed to send message", "error", err, "channel_id", m.ChannelID)
 			}
 		} else {
-			if _, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("ここで一句\n「%s」\n詠み手: %s",
+			if _, err := s.ChannelMessageSend(m.ChannelID, msgtmpl.Format("main.yome_result", "ここで一句\n「%s」\n詠み手: %s",
 				strings.Join([]string{
 					senryus[0].Kamigo,
 					senryus[1].Nakasichi,
@@ -713,7 +714,7 @@ func handleYomeYomuna(m *discordgo.MessageCreate, s *discordgo.Session) bool {
 		senryu, err := service.GetLastSenryu(m.GuildID)
 		if err != nil {
 			if errors.Is(err, service.ErrSenryuNotFound) {
-				s.ChannelMessageSendReply(m.ChannelID, "まだ誰も詠んでいません。", m.Reference())
+				s.ChannelMessageSendReply(m.ChannelID, msgtmpl.Get("main.yomuna_empty", "まだ誰も詠んでいません。"), m.Reference())
 			} else {
 				logger.Error("Failed to get last senryu", "error", err)
 				s.MessageReactionAdd(m.ChannelID, m.ID, "❌")
@@ -732,9 +733,9 @@ func handleYomeYomuna(m *discordgo.MessageCreate, s *discordgo.Session) bool {
 			}
 			var reply string
 			if senryu.Spoiler != nil && *senryu.Spoiler {
-				reply = authorName + "が||「" + senryu.Kamigo + " " + senryu.Nakasichi + " " + senryu.Simogo + "」||って詠んだのが最後やぞ"
+				reply = msgtmpl.Format("main.yomuna_reply_spoiler", "%sが||「%s %s %s」||って詠んだのが最後やぞ", authorName, senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
 			} else {
-				reply = authorName + "が「" + senryu.Kamigo + " " + senryu.Nakasichi + " " + senryu.Simogo + "」って詠んだのが最後やぞ"
+				reply = msgtmpl.Format("main.yomuna_reply", "%sが「%s %s %s」って詠んだのが最後やぞ", authorName, senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
 			}
 			if _, err := s.ChannelMessageSendReply(
 				m.ChannelID,

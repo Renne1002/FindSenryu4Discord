@@ -8,6 +8,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/pkg/msgtmpl"
 	"github.com/u16-io/FindSenryu4Discord/service"
 )
 
@@ -48,19 +49,19 @@ func HandleChannelCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	metrics.RecordCommandExecuted("channel")
 
 	if i.GuildID == "" {
-		respondError(s, i, "このコマンドはサーバー内でのみ使用できます")
+		respondError(s, i, msgtmpl.Get("channel.guild_only", "このコマンドはサーバー内でのみ使用できます"))
 		return
 	}
 
 	if !isServerAdmin(i) {
-		respondError(s, i, "このコマンドはサーバー管理者のみ使用できます")
+		respondError(s, i, msgtmpl.Get("channel.admin_only", "このコマンドはサーバー管理者のみ使用できます"))
 		return
 	}
 
 	data, err := buildChannelSettingsResponse(i.GuildID)
 	if err != nil {
 		logger.Error("Failed to build channel settings response", "error", err, "guild_id", i.GuildID)
-		respondError(s, i, "設定の取得に失敗しました")
+		respondError(s, i, msgtmpl.Get("channel.fetch_failed", "設定の取得に失敗しました"))
 		return
 	}
 
@@ -75,12 +76,12 @@ func HandleChannelCommand(s *discordgo.Session, i *discordgo.InteractionCreate) 
 // HandleChannelToggle handles button clicks for channel type toggles.
 func HandleChannelToggle(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.GuildID == "" {
-		respondError(s, i, "このボタンはサーバー内でのみ使用できます")
+		respondError(s, i, msgtmpl.Get("channel.button_guild_only", "このボタンはサーバー内でのみ使用できます"))
 		return
 	}
 
 	if !isServerAdmin(i) {
-		respondError(s, i, "このボタンはサーバー管理者のみ使用できます")
+		respondError(s, i, msgtmpl.Get("channel.button_admin_only", "このボタンはサーバー管理者のみ使用できます"))
 		return
 	}
 
@@ -89,14 +90,14 @@ func HandleChannelToggle(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	channelTypeInt, err := strconv.Atoi(channelTypeStr)
 	if err != nil {
 		logger.Error("Failed to parse channel type from button", "custom_id", customID)
-		respondError(s, i, "ボタンの解析に失敗しました")
+		respondError(s, i, msgtmpl.Get("channel.button_parse_failed", "ボタンの解析に失敗しました"))
 		return
 	}
 
 	// Validate that the channel type is one we support
 	if !validToggleChannelTypes[channelTypeInt] {
 		logger.Error("Invalid channel type in toggle button", "channel_type", channelTypeInt)
-		respondError(s, i, "不正なチャンネルタイプです")
+		respondError(s, i, msgtmpl.Get("channel.invalid_type", "不正なチャンネルタイプです"))
 		return
 	}
 
@@ -109,7 +110,7 @@ func HandleChannelToggle(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			"guild_id", i.GuildID,
 			"channel_type", channelTypeInt,
 		)
-		respondError(s, i, "設定の更新に失敗しました")
+		respondError(s, i, msgtmpl.Get("channel.update_failed", "設定の更新に失敗しました"))
 		return
 	}
 
@@ -117,7 +118,7 @@ func HandleChannelToggle(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data, err := buildChannelSettingsResponse(i.GuildID)
 	if err != nil {
 		logger.Error("Failed to build updated channel settings response", "error", err, "guild_id", i.GuildID)
-		respondError(s, i, "設定の取得に失敗しました")
+		respondError(s, i, msgtmpl.Get("channel.fetch_failed", "設定の取得に失敗しました"))
 		return
 	}
 
@@ -148,7 +149,7 @@ func buildChannelSettingsResponse(guildID string) (*discordgo.InteractionRespons
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       "チャンネルタイプ別 川柳検出設定",
+		Title:       msgtmpl.Get("channel.embed_title", "チャンネルタイプ別 川柳検出設定"),
 		Description: desc.String(),
 		Color:       0x00bfff,
 	}

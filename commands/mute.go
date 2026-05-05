@@ -4,6 +4,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/pkg/msgtmpl"
 	"github.com/u16-io/FindSenryu4Discord/service"
 )
 
@@ -12,12 +13,12 @@ func HandleMuteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	metrics.RecordCommandExecuted("mute")
 
 	if i.GuildID == "" {
-		respondError(s, i, "このコマンドはサーバー内でのみ使用できます")
+		respondError(s, i, msgtmpl.Get("mute.guild_only", "このコマンドはサーバー内でのみ使用できます"))
 		return
 	}
 
 	if !canManageChannel(i) {
-		respondError(s, i, "このコマンドはサーバー管理者またはチャンネル管理権限を持つユーザーのみ使用できます")
+		respondError(s, i, msgtmpl.Get("mute.manage_channel_required", "このコマンドはサーバー管理者またはチャンネル管理権限を持つユーザーのみ使用できます"))
 		return
 	}
 
@@ -26,7 +27,7 @@ func HandleMuteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "ミュートに失敗しました",
+				Content: msgtmpl.Get("mute.failed", "ミュートに失敗しました"),
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -34,7 +35,7 @@ func HandleMuteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "このチャンネルでの川柳検出をミュートしました",
+				Content: msgtmpl.Get("mute.success", "このチャンネルでの川柳検出をミュートしました"),
 			},
 		})
 	}
@@ -45,12 +46,12 @@ func HandleUnmuteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	metrics.RecordCommandExecuted("unmute")
 
 	if i.GuildID == "" {
-		respondError(s, i, "このコマンドはサーバー内でのみ使用できます")
+		respondError(s, i, msgtmpl.Get("unmute.guild_only", "このコマンドはサーバー内でのみ使用できます"))
 		return
 	}
 
 	if !canManageChannel(i) {
-		respondError(s, i, "このコマンドはサーバー管理者またはチャンネル管理権限を持つユーザーのみ使用できます")
+		respondError(s, i, msgtmpl.Get("unmute.manage_channel_required", "このコマンドはサーバー管理者またはチャンネル管理権限を持つユーザーのみ使用できます"))
 		return
 	}
 
@@ -59,7 +60,7 @@ func HandleUnmuteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "ミュート解除に失敗しました",
+				Content: msgtmpl.Get("unmute.failed", "ミュート解除に失敗しました"),
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
@@ -67,7 +68,7 @@ func HandleUnmuteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "このチャンネルでの川柳検出のミュートを解除しました",
+				Content: msgtmpl.Get("unmute.success", "このチャンネルでの川柳検出のミュートを解除しました"),
 			},
 		})
 	}

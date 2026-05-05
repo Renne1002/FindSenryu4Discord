@@ -10,6 +10,7 @@ import (
 	"github.com/u16-io/FindSenryu4Discord/config"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/pkg/msgtmpl"
 )
 
 var welcomeSentGuilds sync.Map
@@ -35,25 +36,25 @@ func ClearGuildWelcomeSent(guildID string) {
 
 func buildWelcomeEmbed() *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
-		Title:       "川柳検出Bot へようこそ！",
-		Description: "このBotはメッセージから川柳（五・七・五）を自動検出してお知らせします。",
+		Title:       msgtmpl.Get("welcome.title", "川柳検出Bot へようこそ！"),
+		Description: msgtmpl.Get("welcome.description", "このBotはメッセージから川柳（五・七・五）を自動検出してお知らせします。"),
 		Color:       0x5865F2,
 		Fields: []*discordgo.MessageEmbedField{
 			{
-				Name:  "川柳の検出",
-				Value: "普段の会話から五・七・五のリズムを自動で見つけます。特別な操作は不要です！",
+				Name:  msgtmpl.Get("welcome.field_detection_name", "川柳の検出"),
+				Value: msgtmpl.Get("welcome.field_detection_value", "普段の会話から五・七・五のリズムを自動で見つけます。特別な操作は不要です！"),
 			},
 			{
-				Name:  "「詠め」「詠むな」",
-				Value: "「詠め」と発言するとサーバー内の川柳からランダムに一句詠みます。「詠むな」で直前の自分の句を表示します。",
+				Name:  msgtmpl.Get("welcome.field_yome_name", "「詠め」「詠むな」"),
+				Value: msgtmpl.Get("welcome.field_yome_value", "「詠め」と発言するとサーバー内の川柳からランダムに一句詠みます。「詠むな」で直前の自分の句を表示します。"),
 			},
 			{
-				Name:  "便利なコマンド",
-				Value: "`/mute` `/unmute` — チャンネルごとの検出ON/OFF\n`/rank` — サーバー内ランキング\n`/detect off` — 自分の検出を無効化\n`/channel` — チャンネルタイプ別の設定\n`/doctor` — Bot動作の診断",
+				Name:  msgtmpl.Get("welcome.field_commands_name", "便利なコマンド"),
+				Value: msgtmpl.Get("welcome.field_commands_value", "`/mute` `/unmute` — チャンネルごとの検出ON/OFF\n`/rank` — サーバー内ランキング\n`/detect off` — 自分の検出を無効化\n`/channel` — チャンネルタイプ別の設定\n`/doctor` — Bot動作の診断"),
 			},
 			{
-				Name:  "よくある質問",
-				Value: "使い方やトラブルシューティングは [FAQ ページ](https://senryu-bot.u16.io/faq) をご覧ください。",
+				Name:  msgtmpl.Get("welcome.field_faq_name", "よくある質問"),
+				Value: msgtmpl.Get("welcome.field_faq_value", "使い方やトラブルシューティングは [FAQ ページ](https://senryu-bot.u16.io/faq) をご覧ください。"),
 			},
 		},
 	}

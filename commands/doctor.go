@@ -7,6 +7,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/pkg/msgtmpl"
 	"github.com/u16-io/FindSenryu4Discord/service"
 )
 
@@ -31,7 +32,7 @@ func HandleDoctorCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	metrics.RecordCommandExecuted("doctor")
 
 	if i.GuildID == "" {
-		respondError(s, i, "このコマンドはサーバー内でのみ使用できます")
+		respondError(s, i, msgtmpl.Get("doctor.guild_only", "このコマンドはサーバー内でのみ使用できます"))
 		return
 	}
 
@@ -39,7 +40,7 @@ func HandleDoctorCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	perms, err := s.State.UserChannelPermissions(s.State.User.ID, i.ChannelID)
 	if err != nil {
 		logger.Warn("Failed to get bot permissions", "error", err, "channel_id", i.ChannelID)
-		respondError(s, i, "権限情報の取得に失敗しました")
+		respondError(s, i, msgtmpl.Get("doctor.permission_fetch_failed", "権限情報の取得に失敗しました"))
 		return
 	}
 
@@ -49,7 +50,7 @@ func HandleDoctorCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		ch, err = s.Channel(i.ChannelID)
 		if err != nil {
 			logger.Warn("Failed to get channel", "error", err, "channel_id", i.ChannelID)
-			respondError(s, i, "チャンネル情報の取得に失敗しました")
+			respondError(s, i, msgtmpl.Get("doctor.channel_fetch_failed", "チャンネル情報の取得に失敗しました"))
 			return
 		}
 	}
@@ -113,19 +114,19 @@ func HandleDoctorCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	var status string
 	var color int
 	if hasError {
-		status = "問題が見つかりました"
+		status = msgtmpl.Get("doctor.status_error", "問題が見つかりました")
 		color = 0xff0000
 	} else {
-		status = "問題ありません"
+		status = msgtmpl.Get("doctor.status_ok", "問題ありません")
 		color = 0x00ff00
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       fmt.Sprintf("診断結果: %s", status),
+		Title:       msgtmpl.Format("doctor.title", "診断結果: %s", status),
 		Description: strings.Join(results, "\n"),
 		Color:       color,
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("#%s", channelDisplayName(ch)),
+			Text: msgtmpl.Format("doctor.footer", "#%s", channelDisplayName(ch)),
 		},
 	}
 

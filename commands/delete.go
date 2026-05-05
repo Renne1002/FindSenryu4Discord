@@ -9,6 +9,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/pkg/msgtmpl"
 	"github.com/u16-io/FindSenryu4Discord/service"
 )
 
@@ -26,7 +27,7 @@ func HandleDeleteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	metrics.RecordCommandExecuted("delete")
 
 	if i.GuildID == "" {
-		respondError(s, i, "このコマンドはサーバー内でのみ使用できます")
+		respondError(s, i, msgtmpl.Get("delete.guild_only", "このコマンドはサーバー内でのみ使用できます"))
 		return
 	}
 
@@ -35,7 +36,7 @@ func HandleDeleteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	// 他人の川柳を削除する場合は管理者権限が必要
 	if targetUserID != userID && !isServerAdmin(i) {
-		respondError(s, i, "他のユーザーの川柳を削除する権限がありません")
+		respondError(s, i, msgtmpl.Get("delete.permission_denied", "他のユーザーの川柳を削除する権限がありません"))
 		return
 	}
 
@@ -51,14 +52,14 @@ func HandleDeleteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if err != nil {
 		logger.Error("Failed to count senryus for delete", "error", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: strPtr("川柳の取得に失敗しました"),
+			Content: strPtr(msgtmpl.Get("delete.fetch_failed", "川柳の取得に失敗しました")),
 		})
 		return
 	}
 
 	if total == 0 {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: strPtr("削除できる川柳がありません"),
+			Content: strPtr(msgtmpl.Get("delete.empty", "削除できる川柳がありません")),
 		})
 		return
 	}
@@ -66,7 +67,7 @@ func HandleDeleteCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	content, components := buildDeletePage(i.GuildID, targetUserID, 0, total)
 	if components == nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: strPtr("川柳の取得に失敗しました"),
+			Content: strPtr(msgtmpl.Get("delete.fetch_failed", "川柳の取得に失敗しました")),
 		})
 		return
 	}
@@ -82,7 +83,7 @@ func HandleDeletePage(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.MessageComponentData()
 	parts := strings.SplitN(strings.TrimPrefix(data.CustomID, DeletePagePrefix), ":", 3)
 	if len(parts) != 3 {
-		respondComponentUpdate(s, i, "無効な操作です")
+		respondComponentUpdate(s, i, msgtmpl.Get("delete.invalid_operation", "無効な操作です"))
 		return
 	}
 
@@ -91,31 +92,31 @@ func HandleDeletePage(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	// 権限チェック: ボタン押下者が元のコマンド実行者または管理者であることを確認
 	if getUserID(i) != targetUserID && !isServerAdmin(i) {
-		respondEphemeral(s, i, "他のユーザーの削除操作を行う権限がありません")
+		respondEphemeral(s, i, msgtmpl.Get("delete.component_permission_denied", "他のユーザーの削除操作を行う権限がありません"))
 		return
 	}
 
 	page, err := strconv.Atoi(parts[2])
 	if err != nil || page < 0 {
-		respondComponentUpdate(s, i, "無効な操作です")
+		respondComponentUpdate(s, i, msgtmpl.Get("delete.invalid_operation", "無効な操作です"))
 		return
 	}
 
 	total, err := service.CountSenryusByAuthor(guildID, targetUserID)
 	if err != nil {
 		logger.Error("Failed to count senryus for delete page", "error", err)
-		respondComponentUpdate(s, i, "川柳の取得に失敗しました")
+		respondComponentUpdate(s, i, msgtmpl.Get("delete.fetch_failed", "川柳の取得に失敗しました"))
 		return
 	}
 
 	if total == 0 {
-		respondComponentUpdate(s, i, "削除できる川柳がありません")
+		respondComponentUpdate(s, i, msgtmpl.Get("delete.empty", "削除できる川柳がありません"))
 		return
 	}
 
 	content, components := buildDeletePage(guildID, targetUserID, page, total)
 	if components == nil {
-		respondComponentUpdate(s, i, "川柳の取得に失敗しました")
+		respondComponentUpdate(s, i, msgtmpl.Get("delete.fetch_failed", "川柳の取得に失敗しました"))
 		return
 	}
 
@@ -132,7 +133,7 @@ func HandleDeletePage(s *discordgo.Session, i *discordgo.InteractionCreate) {
 // Returns the message content and components. components is nil on error.
 func buildDeletePage(guildID, targetUserID string, page, total int) (string, *[]discordgo.MessageComponent) {
 	if total <= 0 {
-		return "削除できる川柳がありません", nil
+		return msgtmpl.Get("delete.empty", "削除できる川柳がありません"), nil
 	}
 
 	totalPages := (total + deletePageSize - 1) / deletePageSize
@@ -148,7 +149,7 @@ func buildDeletePage(guildID, targetUserID string, page, total int) (string, *[]
 	}
 
 	if len(senryus) == 0 {
-		return "削除できる川柳がありません", nil
+		return msgtmpl.Get("delete.empty", "削除できる川柳がありません"), nil
 	}
 
 	menuOptions := make([]discordgo.SelectMenuOption, 0, len(senryus))
@@ -165,9 +166,9 @@ func buildDeletePage(guildID, targetUserID string, page, total int) (string, *[]
 
 	var content string
 	if totalPages > 1 {
-		content = fmt.Sprintf("削除する川柳を選んでください（%d/%dページ, 全%d件）:", page+1, totalPages, total)
+		content = msgtmpl.Format("delete.select_with_paging", "削除する川柳を選んでください（%d/%dページ, 全%d件）:", page+1, totalPages, total)
 	} else {
-		content = "削除する川柳を選んでください:"
+		content = msgtmpl.Get("delete.select", "削除する川柳を選んでください:")
 	}
 
 	components := []discordgo.MessageComponent{
@@ -175,7 +176,7 @@ func buildDeletePage(guildID, targetUserID string, page, total int) (string, *[]
 			Components: []discordgo.MessageComponent{
 				discordgo.SelectMenu{
 					CustomID:    DeleteSelectCustomID,
-					Placeholder: "川柳を選択",
+					Placeholder: msgtmpl.Get("delete.select_placeholder", "川柳を選択"),
 					Options:     menuOptions,
 				},
 			},
@@ -234,25 +235,25 @@ func HandleDeleteSelectMenu(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	senryuID, err := strconv.Atoi(data.Values[0])
 	if err != nil {
-		respondComponentUpdate(s, i, "無効な選択です")
+		respondComponentUpdate(s, i, msgtmpl.Get("delete.invalid_selection", "無効な選択です"))
 		return
 	}
 
 	senryu, err := service.GetSenryuByID(senryuID, i.GuildID)
 	if err != nil {
 		if errors.Is(err, service.ErrSenryuNotFound) {
-			respondComponentUpdate(s, i, "川柳が見つかりませんでした")
+			respondComponentUpdate(s, i, msgtmpl.Get("delete.not_found", "川柳が見つかりませんでした"))
 		} else {
-			respondComponentUpdate(s, i, "川柳の取得に失敗しました")
+			respondComponentUpdate(s, i, msgtmpl.Get("delete.fetch_failed", "川柳の取得に失敗しました"))
 		}
 		return
 	}
 
 	var text string
 	if senryu.Spoiler != nil && *senryu.Spoiler {
-		text = fmt.Sprintf("||「%s %s %s」||を削除しますか？", senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
+		text = msgtmpl.Format("delete.confirm_spoiler", "||「%s %s %s」||を削除しますか？", senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
 	} else {
-		text = fmt.Sprintf("「%s %s %s」を削除しますか？", senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
+		text = msgtmpl.Format("delete.confirm", "「%s %s %s」を削除しますか？", senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
 	}
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -263,12 +264,12 @@ func HandleDeleteSelectMenu(s *discordgo.Session, i *discordgo.InteractionCreate
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
 						discordgo.Button{
-							Label:    "削除する",
+							Label:    msgtmpl.Get("delete.confirm_button", "削除する"),
 							Style:    discordgo.DangerButton,
 							CustomID: DeleteConfirmPrefix + data.Values[0],
 						},
 						discordgo.Button{
-							Label:    "キャンセル",
+							Label:    msgtmpl.Get("delete.cancel_button", "キャンセル"),
 							Style:    discordgo.SecondaryButton,
 							CustomID: DeleteCancelCustomID,
 						},
@@ -286,7 +287,7 @@ func HandleDeleteConfirm(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	senryuID, err := strconv.Atoi(idStr)
 	if err != nil {
-		respondComponentUpdate(s, i, "無効な操作です")
+		respondComponentUpdate(s, i, msgtmpl.Get("delete.invalid_operation", "無効な操作です"))
 		return
 	}
 
@@ -294,41 +295,41 @@ func HandleDeleteConfirm(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	senryu, err := service.GetSenryuByID(senryuID, i.GuildID)
 	if err != nil {
 		if errors.Is(err, service.ErrSenryuNotFound) {
-			respondComponentUpdate(s, i, "川柳が見つかりませんでした（既に削除された可能性があります）")
+			respondComponentUpdate(s, i, msgtmpl.Get("delete.not_found_maybe_deleted", "川柳が見つかりませんでした（既に削除された可能性があります）"))
 		} else {
-			respondComponentUpdate(s, i, "川柳の取得に失敗しました")
+			respondComponentUpdate(s, i, msgtmpl.Get("delete.fetch_failed", "川柳の取得に失敗しました"))
 		}
 		return
 	}
 
 	userID := getUserID(i)
 	if senryu.AuthorID != userID && !isServerAdmin(i) {
-		respondComponentUpdate(s, i, "この川柳を削除する権限がありません")
+		respondComponentUpdate(s, i, msgtmpl.Get("delete.delete_permission_denied", "この川柳を削除する権限がありません"))
 		return
 	}
 
 	if err := service.DeleteSenryu(senryuID, i.GuildID); err != nil {
 		if errors.Is(err, service.ErrSenryuNotFound) {
-			respondComponentUpdate(s, i, "川柳が見つかりませんでした（既に削除された可能性があります）")
+			respondComponentUpdate(s, i, msgtmpl.Get("delete.not_found_maybe_deleted", "川柳が見つかりませんでした（既に削除された可能性があります）"))
 		} else {
 			logger.Error("Failed to delete senryu", "error", err, "id", senryuID)
-			respondComponentUpdate(s, i, "川柳の削除に失敗しました")
+			respondComponentUpdate(s, i, msgtmpl.Get("delete.delete_failed", "川柳の削除に失敗しました"))
 		}
 		return
 	}
 
 	var deleteText string
 	if senryu.Spoiler != nil && *senryu.Spoiler {
-		deleteText = fmt.Sprintf("||「%s %s %s」||を削除しました", senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
+		deleteText = msgtmpl.Format("delete.deleted_spoiler", "||「%s %s %s」||を削除しました", senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
 	} else {
-		deleteText = fmt.Sprintf("「%s %s %s」を削除しました", senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
+		deleteText = msgtmpl.Format("delete.deleted", "「%s %s %s」を削除しました", senryu.Kamigo, senryu.Nakasichi, senryu.Simogo)
 	}
 	respondComponentUpdate(s, i, deleteText)
 }
 
 // HandleDeleteCancel handles the cancel button for delete
 func HandleDeleteCancel(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	respondComponentUpdate(s, i, "削除をキャンセルしました")
+	respondComponentUpdate(s, i, msgtmpl.Get("delete.canceled", "削除をキャンセルしました"))
 }
 
 func respondComponentUpdate(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {

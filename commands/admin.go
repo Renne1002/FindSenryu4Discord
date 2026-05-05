@@ -10,6 +10,7 @@ import (
 	"github.com/u16-io/FindSenryu4Discord/pkg/backup"
 	"github.com/u16-io/FindSenryu4Discord/pkg/logger"
 	"github.com/u16-io/FindSenryu4Discord/pkg/metrics"
+	"github.com/u16-io/FindSenryu4Discord/pkg/msgtmpl"
 	"github.com/u16-io/FindSenryu4Discord/pkg/permissions"
 	"github.com/u16-io/FindSenryu4Discord/service"
 )
@@ -106,7 +107,7 @@ func HandleAdminCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	userID := getUserID(i)
 
 	if !permissions.CheckOwnerPermission(userID, "admin_command") {
-		respondError(s, i, "このコマンドはBot管理者のみ使用できます")
+		respondError(s, i, msgtmpl.Get("admin.owner_only", "このコマンドはBot管理者のみ使用できます"))
 		return
 	}
 
@@ -114,7 +115,7 @@ func HandleAdminCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	options := i.ApplicationCommandData().Options
 	if len(options) == 0 {
-		respondError(s, i, "サブコマンドを指定してください")
+		respondError(s, i, msgtmpl.Get("admin.subcommand_required", "サブコマンドを指定してください"))
 		return
 	}
 
@@ -135,7 +136,7 @@ func handleStatsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	uptime := time.Since(startTime).Round(time.Second)
 
 	embed := &discordgo.MessageEmbed{
-		Title:     "Bot Statistics",
+		Title:     msgtmpl.Get("admin.stats_title", "Bot Statistics"),
 		Color:     0x00ff00,
 		Timestamp: time.Now().Format(time.RFC3339),
 		Fields: []*discordgo.MessageEmbedField{
@@ -185,12 +186,12 @@ func handleBackupCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	conf := config.GetConf()
 
 	if conf.Database.Driver != "sqlite3" {
-		respondError(s, i, "バックアップはSQLiteのみ対応しています")
+		respondError(s, i, msgtmpl.Get("admin.backup_sqlite_only", "バックアップはSQLiteのみ対応しています"))
 		return
 	}
 
 	if backupManager == nil {
-		respondError(s, i, "バックアップマネージャーが初期化されていません")
+		respondError(s, i, msgtmpl.Get("admin.backup_manager_unavailable", "バックアップマネージャーが初期化されていません"))
 		return
 	}
 
@@ -205,7 +206,7 @@ func handleBackupCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if err := backupManager.CreateBackup(); err != nil {
 		logger.Error("Manual backup failed", "error", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: strPtr("バックアップの作成に失敗しました: " + err.Error()),
+			Content: strPtr(msgtmpl.Format("admin.backup_create_failed", "バックアップの作成に失敗しました: %s", err.Error())),
 		})
 		return
 	}
@@ -214,7 +215,7 @@ func handleBackupCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	backups, err := backupManager.ListBackups()
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: strPtr("バックアップは作成されましたが、一覧の取得に失敗しました"),
+			Content: strPtr(msgtmpl.Get("admin.backup_list_failed", "バックアップは作成されましたが、一覧の取得に失敗しました")),
 		})
 		return
 	}
@@ -228,7 +229,7 @@ func handleBackupCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       "Backup Created",
+		Title:       msgtmpl.Get("admin.backup_created_title", "Backup Created"),
 		Description: description,
 		Color:       0x00ff00,
 		Timestamp:   time.Now().Format(time.RFC3339),
@@ -241,7 +242,7 @@ func handleBackupCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 func handleContactMessageCommand(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
 	if len(options) == 0 {
-		respondError(s, i, "サブコマンドを指定してください")
+		respondError(s, i, msgtmpl.Get("admin.subcommand_required", "サブコマンドを指定してください"))
 		return
 	}
 
@@ -257,45 +258,45 @@ func handleContactMessageCommand(s *discordgo.Session, i *discordgo.InteractionC
 
 func handleContactMessageSet(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
 	if len(options) == 0 {
-		respondError(s, i, "メッセージを指定してください")
+		respondError(s, i, msgtmpl.Get("admin.contact_message_required", "メッセージを指定してください"))
 		return
 	}
 
 	message := options[0].StringValue()
 	if err := service.SetContactAdditionalMessage(message); err != nil {
 		logger.Error("Failed to set contact additional message", "error", err)
-		respondError(s, i, "追加メッセージの設定に失敗しました")
+		respondError(s, i, msgtmpl.Get("admin.contact_set_failed", "追加メッセージの設定に失敗しました"))
 		return
 	}
 
-	respondEphemeral(s, i, "追加メッセージを設定しました ✅")
+	respondEphemeral(s, i, msgtmpl.Get("admin.contact_set_success", "追加メッセージを設定しました ✅"))
 }
 
 func handleContactMessageClear(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if err := service.ClearContactAdditionalMessage(); err != nil {
 		logger.Error("Failed to clear contact additional message", "error", err)
-		respondError(s, i, "追加メッセージの削除に失敗しました")
+		respondError(s, i, msgtmpl.Get("admin.contact_clear_failed", "追加メッセージの削除に失敗しました"))
 		return
 	}
 
-	respondEphemeral(s, i, "追加メッセージを削除しました ✅")
+	respondEphemeral(s, i, msgtmpl.Get("admin.contact_clear_success", "追加メッセージを削除しました ✅"))
 }
 
 func handleContactMessageShow(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	message, err := service.GetContactAdditionalMessage()
 	if err != nil {
 		logger.Error("Failed to get contact additional message", "error", err)
-		respondError(s, i, "追加メッセージの取得に失敗しました")
+		respondError(s, i, msgtmpl.Get("admin.contact_get_failed", "追加メッセージの取得に失敗しました"))
 		return
 	}
 
 	if message == "" {
-		respondEphemeral(s, i, "追加メッセージは設定されていません")
+		respondEphemeral(s, i, msgtmpl.Get("admin.contact_not_set", "追加メッセージは設定されていません"))
 		return
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       "現在の追加メッセージ",
+		Title:       msgtmpl.Get("admin.contact_current_title", "現在の追加メッセージ"),
 		Description: message,
 		Color:       0x5865F2,
 	}
