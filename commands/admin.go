@@ -1,7 +1,10 @@
 package commands
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -66,6 +69,44 @@ func AdminCommands() []*discordgo.ApplicationCommand {
 					Type:        discordgo.ApplicationCommandOptionSubCommand,
 				},
 				{
+					Name:        "wordban",
+					Description: "禁止ワードを管理します",
+					Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Name:        "add",
+							Description: "禁止ワードを追加します",
+							Type:        discordgo.ApplicationCommandOptionSubCommand,
+							Options: []*discordgo.ApplicationCommandOption{
+								{
+									Name:        "word",
+									Description: "禁止ワード",
+									Type:        discordgo.ApplicationCommandOptionString,
+									Required:    true,
+								},
+							},
+						},
+						{
+							Name:        "delete",
+							Description: "禁止ワードを削除します",
+							Type:        discordgo.ApplicationCommandOptionSubCommand,
+							Options: []*discordgo.ApplicationCommandOption{
+								{
+									Name:        "word",
+									Description: "禁止ワード",
+									Type:        discordgo.ApplicationCommandOptionString,
+									Required:    true,
+								},
+							},
+						},
+						{
+							Name:        "list",
+							Description: "登録済み禁止ワードを表示します",
+							Type:        discordgo.ApplicationCommandOptionSubCommand,
+						},
+					},
+				},
+				{
 					Name:        "contact-message",
 					Description: "/contactコマンドに表示する追加メッセージを管理します",
 					Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
@@ -124,9 +165,129 @@ func HandleAdminCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		handleStatsCommand(s, i)
 	case "backup":
 		handleBackupCommand(s, i)
+	case "wordban":
+		handleWordBanCommand(s, i, options[0].Options)
 	case "contact-message":
 		handleContactMessageCommand(s, i, options[0].Options)
 	}
+}
+
+func handleWordBanCommand(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
+	if len(options) == 0 {
+		respondError(s, i, msgtmpl.Get("admin.wordban_subcommand_required", "wordban のサブコマンドを指定してください"))
+		return
+	}
+
+	switch options[0].Name {
+	case "add":
+		handleWordBanAdd(s, i, options[0].Options)
+	case "delete":
+		handleWordBanDelete(s, i, options[0].Options)
+	case "list":
+		handleWordBanList(s, i)
+	default:
+		respondError(s, i, msgtmpl.Get("admin.wordban_subcommand_required", "wordban のサブコマンドを指定してください"))
+	}
+}
+
+func handleWordBanAdd(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
+	word := optionString(options, "word")
+	if word == "" {
+		respondError(s, i, msgtmpl.Get("admin.wordban_word_required", "word を指定してください"))
+		return
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsEphemeral},
+	})
+
+	normalized, deleted, err := service.AddBannedWord(word)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrWordInvalid):
+			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: strPtr(msgtmpl.Get("admin.wordban_invalid", "禁止ワードは空白なしの1語で指定してください"))})
+		case errors.Is(err, service.ErrWordAlreadyBanned):
+			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: strPtr(msgtmpl.Get("admin.wordban_add_exists", "その禁止ワードはすでに登録されています"))})
+		default:
+			logger.Error("Failed to add banned word", "error", err, "word", word)
+			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: strPtr(msgtmpl.Get("admin.wordban_add_failed", "禁止ワードの追加に失敗しました"))})
+		}
+		return
+	}
+
+	lines := []string{
+		msgtmpl.Format("admin.wordban_add_success", "禁止ワードを追加しました: %s", normalized),
+		msgtmpl.Format("admin.wordban_add_deleted_count", "削除した川柳: %d", len(deleted)),
+	}
+	for idx, sr := range deleted {
+		if idx >= 20 {
+			lines = append(lines, msgtmpl.Format("admin.wordban_add_more", "...ほか %d 件", len(deleted)-20))
+			break
+		}
+		lines = append(lines, msgtmpl.Format("admin.wordban_add_item", "- [%s] %s", sr.ServerID, fmt.Sprintf("%s %s %s", sr.Kamigo, sr.Nakasichi, sr.Simogo)))
+	}
+
+	content := strings.Join(lines, "\n")
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &content})
+}
+
+func handleWordBanDelete(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
+	word := optionString(options, "word")
+	if word == "" {
+		respondError(s, i, msgtmpl.Get("admin.wordban_word_required", "word を指定してください"))
+		return
+	}
+
+	normalized, err := service.DeleteBannedWord(word)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrWordInvalid):
+			respondError(s, i, msgtmpl.Get("admin.wordban_invalid", "禁止ワードは空白なしの1語で指定してください"))
+		case errors.Is(err, service.ErrWordNotFound):
+			respondError(s, i, msgtmpl.Get("admin.wordban_delete_not_found", "その禁止ワードは登録されていません"))
+		default:
+			logger.Error("Failed to delete banned word", "error", err, "word", word)
+			respondError(s, i, msgtmpl.Get("admin.wordban_delete_failed", "禁止ワードの削除に失敗しました"))
+		}
+		return
+	}
+
+	respondEphemeral(s, i, msgtmpl.Format("admin.wordban_delete_success", "禁止ワードを削除しました: %s", normalized))
+}
+
+func handleWordBanList(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	words := service.ListBannedWords()
+	if len(words) == 0 {
+		respondEphemeral(s, i, msgtmpl.Get("admin.wordban_list_empty", "禁止ワードはまだ登録されていません"))
+		return
+	}
+
+	body := strings.Join(words, "\n") + "\n"
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: msgtmpl.Format("admin.wordban_list_header", "禁止ワード一覧（%d件）", len(words)),
+			Flags:   discordgo.MessageFlagsEphemeral,
+			Files: []*discordgo.File{
+				{
+					Name:   "wordban_snapshot.txt",
+					Reader: bytes.NewBufferString(body),
+				},
+			},
+		},
+	}); err != nil {
+		logger.Error("Failed to respond wordban list", "error", err)
+	}
+}
+
+func optionString(options []*discordgo.ApplicationCommandInteractionDataOption, name string) string {
+	for _, o := range options {
+		if o.Name == name {
+			return o.StringValue()
+		}
+	}
+	return ""
 }
 
 func handleStatsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {

@@ -190,6 +190,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Load banned words from wordban.txt
+	if err := service.InitWordBan("wordban.txt"); err != nil {
+		logger.Error("Failed to initialize word ban list", "error", err)
+		os.Exit(1)
+	}
+
 	// Start health check server
 	healthServer, err := health.StartServer()
 	if err != nil {
@@ -564,6 +570,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			}
 			h := findHaikuSafe(content, []int{5, 7, 5})
 			if len(h) != 0 && !haikuSpansNewline(content, h[0]) {
+				if blocked, _ := service.MatchBannedWords(h[0]); blocked {
+					return
+				}
 				senryu := strings.Split(h[0], " ")
 				created, err := service.CreateSenryu(
 					model.Senryu{
