@@ -1,0 +1,20 @@
+[tools]
+go = "1.26.1"
+
+[tasks]
+setup = "mise install && go mod download"
+migrate = "go run ./cmd/migrate"
+run = "go run ."
+dev = "go run ./cmd/migrate && go run ."
+test = "go test ./..."
+testv = "go test -v ./..."
+fmt = "gofmt -w ."
+vet = "go vet ./..."
+build = "go build -o bin/bot ."
+build-migrate = "go build -o bin/migrate ./cmd/migrate"
+health = "curl -fsS http://localhost:9090/health && echo"
+ready = "curl -fsS http://localhost:9090/ready && echo"
+stats = "curl -fsS http://localhost:9090/stats && echo"
+up = "docker compose up --build -d"
+down = "docker compose down"
+logs = "docker compose logs -f app"
