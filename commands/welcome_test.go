@@ -19,7 +19,7 @@ func TestBuildWelcomeEmbed_フィールド構成(t *testing.T) {
 		t.Error("embed color should be set")
 	}
 
-	expectedFields := []string{"川柳の検出", "「詠め」「詠むな」", "便利なコマンド", "よくある質問"}
+	expectedFields := []string{"川柳の検出", "「詠んで」「詠まないで」", "便利なコマンド", "よくある質問"}
 	if len(embed.Fields) != len(expectedFields) {
 		t.Fatalf("expected %d fields, got %d", len(expectedFields), len(embed.Fields))
 	}

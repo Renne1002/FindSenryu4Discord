@@ -697,7 +697,7 @@ func handleRankCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 func handleYomeYomuna(m *discordgo.MessageCreate, s *discordgo.Session) bool {
 	switch m.Content {
-	case "詠め":
+	case "詠んで":
 		senryus, err := service.GetThreeRandomSenryus(m.GuildID)
 		if err != nil {
 			logger.Error("Failed to get random senryus", "error", err)
@@ -719,7 +719,7 @@ func handleYomeYomuna(m *discordgo.MessageCreate, s *discordgo.Session) bool {
 			}
 		}
 		return true
-	case "詠むな":
+	case "詠まないで":
 		senryu, err := service.GetLastSenryu(m.GuildID)
 		if err != nil {
 			if errors.Is(err, service.ErrSenryuNotFound) {

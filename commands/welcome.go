@@ -45,8 +45,8 @@ func buildWelcomeEmbed() *discordgo.MessageEmbed {
 				Value: msgtmpl.Get("welcome.field_detection_value", "普段の会話から五・七・五のリズムを自動で見つけます。特別な操作は不要です！"),
 			},
 			{
-				Name:  msgtmpl.Get("welcome.field_yome_name", "「詠め」「詠むな」"),
-				Value: msgtmpl.Get("welcome.field_yome_value", "「詠め」と発言するとサーバー内の川柳からランダムに一句詠みます。「詠むな」で直前の自分の句を表示します。"),
+				Name:  msgtmpl.Get("welcome.field_yome_name", "「詠んで」「詠まないで」"),
+				Value: msgtmpl.Get("welcome.field_yome_value", "「詠んで」と発言するとサーバー内の川柳からランダムに一句詠みます。「詠まないで」で直前の自分の句を表示します。"),
 			},
 			{
 				Name:  msgtmpl.Get("welcome.field_commands_name", "便利なコマンド"),
