@@ -84,6 +84,18 @@ var (
 			Description: "このチャンネルでBotが正常に動作するか診断します",
 		},
 		{
+			Name:        "test",
+			Description: "入力した文章が川柳かどうかを判定します",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "text",
+					Description: "判定したい文章",
+					Required:    true,
+				},
+			},
+		},
+		{
 			Name:        "detect",
 			Description: "自分の川柳検出のオン/オフを切り替えます",
 			Options: []*discordgo.ApplicationCommandOption{
@@ -144,6 +156,7 @@ var (
 		"channel": commands.HandleChannelCommand,
 		"delete":  commands.HandleDeleteCommand,
 		"doctor":  commands.HandleDoctorCommand,
+		"test":    commands.HandleTestCommand,
 		"detect":  commands.HandleDetectCommand,
 		"admin":   commands.HandleAdminCommand,
 		"contact": commands.HandleContactCommand,
